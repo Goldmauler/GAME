@@ -115,7 +115,11 @@ class AuctionRoom {
   addClient(ws, teamId, userName, userId) {
     const isHost = userId === this.hostId
     this.clients.set(ws, { teamId, userName, userId, isHost })
-    this.takenTeams.add(teamId)
+    
+    // Only add to takenTeams if teamId is not null
+    if (teamId) {
+      this.takenTeams.add(teamId)
+    }
     
     // Check if minimum teams reached and host hasn't started yet
     if (this.auctionState.phase === 'lobby' && this.clients.size >= this.minTeams) {
@@ -168,6 +172,9 @@ class AuctionRoom {
     this.auctionState.phase = 'countdown'
     this.auctionState.countdownSeconds = 10
     
+    // Broadcast initial countdown immediately
+    this.broadcastCountdown()
+    
     this.countdownInterval = setInterval(() => {
       this.auctionState.countdownSeconds -= 1
       
@@ -215,6 +222,21 @@ class AuctionRoom {
 
   startAuction() {
     if (this.auctionState.phase === 'lobby' || this.auctionState.phase === 'countdown') {
+      // Auto-assign teams to players who haven't selected one
+      let availableTeamIds = this.teams.map(t => t.id).filter(id => !this.takenTeams.has(id))
+      let teamIndex = 0
+      
+      this.clients.forEach((client, ws) => {
+        if (!client.teamId && availableTeamIds.length > 0) {
+          const assignedTeamId = availableTeamIds[teamIndex % availableTeamIds.length]
+          client.teamId = assignedTeamId
+          this.takenTeams.add(assignedTeamId)
+          this.clients.set(ws, client)
+          teamIndex++
+          console.log(`✅ Auto-assigned ${client.userName} to team ${assignedTeamId}`)
+        }
+      })
+      
       this.auctionState.phase = 'active'
       this.startTicking()
       
@@ -232,6 +254,9 @@ class AuctionRoom {
           ws.send(message)
         }
       })
+      
+      // Broadcast initial state
+      this.broadcastState()
     }
   }
 
@@ -471,6 +496,19 @@ class AuctionRoom {
   }
 
   getRoomInfo() {
+    // Build player list
+    const playersList = []
+    this.clients.forEach((client) => {
+      const team = this.teams.find(t => t.id === client.teamId)
+      playersList.push({
+        userName: client.userName,
+        userId: client.userId,
+        teamId: client.teamId,
+        teamName: team ? team.name : null,
+        isHost: client.isHost
+      })
+    })
+    
     return {
       roomCode: this.roomCode,
       hostName: this.hostName,
@@ -481,6 +519,7 @@ class AuctionRoom {
       phase: this.auctionState.phase,
       takenTeams: Array.from(this.takenTeams),
       availableTeams: this.teams.filter(t => !this.takenTeams.has(t.id)),
+      players: playersList,
       createdAt: this.createdAt,
       canStart: this.clients.size >= this.minTeams,
     }
@@ -631,28 +670,48 @@ function handleJoinRoom(ws, payload) {
 
   // Send welcome message
   ws.send(JSON.stringify({
-    type: 'joined-room',
+    type: 'room-joined',
     payload: {
       roomCode,
       userId: playerId,
-      teams: room.teams,
-      auctionState: room.auctionState,
       roomInfo: room.getRoomInfo(),
+      availableTeams: room.teams,
+      isHost: playerId === room.hostId,
     },
   }))
 
-  // Notify all clients
-  room.broadcastState()
+  // Notify all clients about room update
+  const updateMessage = JSON.stringify({
+    type: 'room-update',
+    payload: {
+      roomInfo: room.getRoomInfo(),
+      availableTeams: room.teams,
+    },
+  })
+  
+  room.clients.forEach((_, clientWs) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(updateMessage)
+    }
+  })
 }
 
 function handleSelectTeam(ws, payload) {
   const roomCode = clientRooms.get(ws)
-  if (!roomCode) return
+  if (!roomCode) {
+    console.log('❌ Select team: No room code found')
+    return
+  }
 
   const room = rooms.get(roomCode)
-  if (!room) return
+  if (!room) {
+    console.log('❌ Select team: Room not found')
+    return
+  }
 
   const { teamId } = payload
+  
+  console.log(`🎯 Team selection attempt: teamId=${teamId}`)
 
   const success = room.selectTeam(ws, teamId)
   
@@ -660,7 +719,7 @@ function handleSelectTeam(ws, payload) {
     const client = room.clients.get(ws)
     const team = room.teams.find(t => t.id === teamId)
     
-    console.log(`${client.userName} selected team: ${team.name}`)
+    console.log(`✅ ${client.userName} selected team: ${team.name}`)
     
     ws.send(JSON.stringify({
       type: 'team-selected',
@@ -671,7 +730,25 @@ function handleSelectTeam(ws, payload) {
       }
     }))
     
-    room.broadcastState()
+    // Broadcast room update to all clients
+    const updateMessage = JSON.stringify({
+      type: 'room-update',
+      payload: {
+        roomInfo: room.getRoomInfo(),
+        availableTeams: room.teams,
+      },
+    })
+    
+    room.clients.forEach((_, clientWs) => {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(updateMessage)
+      }
+    })
+    
+    // Check if ready to start after team selection
+    if (room.auctionState.phase === 'lobby' && room.clients.size >= room.minTeams) {
+      room.notifyReadyToStart()
+    }
   } else {
     ws.send(JSON.stringify({
       type: 'error',
@@ -682,15 +759,25 @@ function handleSelectTeam(ws, payload) {
 
 function handleStartAuction(ws) {
   const roomCode = clientRooms.get(ws)
-  if (!roomCode) return
+  if (!roomCode) {
+    console.log('❌ No room code found for client')
+    return
+  }
 
   const room = rooms.get(roomCode)
-  if (!room) return
+  if (!room) {
+    console.log('❌ Room not found:', roomCode)
+    return
+  }
 
   const client = room.clients.get(ws)
   
+  console.log(`🎬 Start auction requested by ${client?.userName} in room ${roomCode}`)
+  console.log(`   Players in room: ${room.clients.size}, Min teams: ${room.minTeams}`)
+  
   // Only host can start the auction
   if (!client || !client.isHost) {
+    console.log('❌ Not host or client not found')
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: 'Only the host can start the auction' },
@@ -700,6 +787,7 @@ function handleStartAuction(ws) {
 
   // Need minimum teams
   if (room.clients.size < room.minTeams) {
+    console.log(`❌ Not enough teams: ${room.clients.size} < ${room.minTeams}`)
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: `Need at least ${room.minTeams} teams to start` },
@@ -707,25 +795,12 @@ function handleStartAuction(ws) {
     return
   }
 
-  // Check if all players have selected teams
-  let allTeamsSelected = true
-  room.clients.forEach((client) => {
-    if (!client.teamId) {
-      allTeamsSelected = false
-    }
-  })
-
-  if (!allTeamsSelected) {
-    ws.send(JSON.stringify({
-      type: 'error',
-      payload: { message: 'All players must select a team before starting' },
-    }))
-    return
-  }
+  console.log('✅ All validations passed, starting countdown...')
 
   // Start 10-second countdown
   const started = room.startCountdownTimer()
   if (!started) {
+    console.log('❌ Failed to start countdown timer')
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: 'Unable to start auction' },

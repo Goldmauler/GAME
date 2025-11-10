@@ -37,6 +37,7 @@ interface RoomState {
   phase: 'lobby' | 'countdown' | 'active' | 'completed'
   takenTeams: string[]
   availableTeams: Team[]
+  players?: Array<{userName: string, userId: string, teamId?: string, teamName?: string, isHost: boolean}>
   canStart: boolean
 }
 
@@ -66,12 +67,14 @@ export default function RoomPage() {
   const [userId, setUserId] = useState('')
   const [isHost, setIsHost] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
+  const [inWaitingLobby, setInWaitingLobby] = useState(false)
 
   // Room state
   const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
+  const [joinedPlayers, setJoinedPlayers] = useState<Array<{userName: string, userId: string, teamId?: string, teamName?: string, isHost: boolean}>>([])
   
   // Auction state
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
@@ -165,6 +168,10 @@ export default function RoomPage() {
         setRoomState(msg.payload.roomInfo)
         setTeams(msg.payload.availableTeams || [])
         setIsHost(msg.payload.isHost || false)
+        // Store joined players list
+        if (msg.payload.roomInfo.players) {
+          setJoinedPlayers(msg.payload.roomInfo.players)
+        }
         toast({
           title: 'Joined Room',
           description: `Welcome to room ${roomCode}!`,
@@ -174,20 +181,20 @@ export default function RoomPage() {
       case 'room-update':
         setRoomState(msg.payload.roomInfo)
         setTeams(msg.payload.availableTeams || [])
+        // Update joined players list
+        if (msg.payload.roomInfo.players) {
+          setJoinedPlayers(msg.payload.roomInfo.players)
+        }
         break
 
       case 'team-selected':
+        console.log('📨 Received team-selected message:', msg.payload)
+        setSelectedTeamId(msg.payload.teamId)
+        setInWaitingLobby(true) // Move to waiting lobby after team selection
+        localStorage.setItem('selectedTeamId', msg.payload.teamId)
         toast({
-          title: 'Team Selected',
-          description: `You are now ${msg.payload.teamName}`,
-        })
-        break
-
-      case 'team-selection-failed':
-        toast({
-          title: 'Selection Failed',
-          description: msg.payload.message || 'Team is already taken',
-          variant: 'destructive',
+          title: 'Team Selected!',
+          description: `You are now ${msg.payload.teamName}! Waiting for other players...`,
         })
         break
 
@@ -202,6 +209,16 @@ export default function RoomPage() {
         if (auctionState) {
           setAuctionState({
             ...auctionState,
+            countdownSeconds: msg.payload.seconds,
+          })
+        } else {
+          setAuctionState({
+            playerIndex: 0,
+            currentPrice: 0,
+            highestBidder: null,
+            bidHistory: [],
+            timeLeft: 30,
+            phase: 'countdown',
             countdownSeconds: msg.payload.seconds,
           })
         }
@@ -271,14 +288,36 @@ export default function RoomPage() {
     }
   }
 
+  // Team selection handler
   const handleSelectTeam = (teamId: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      setSelectedTeamId(teamId)
-      wsRef.current.send(JSON.stringify({
-        type: 'select-team',
-        payload: { teamId },
-      }))
+    console.log('🎯 handleSelectTeam called with teamId:', teamId)
+    console.log('🔌 WebSocket state:', wsRef.current?.readyState)
+    
+    if (!wsRef.current) {
+      console.error('❌ No WebSocket connection!')
+      toast({
+        title: 'Connection Error',
+        description: 'Not connected to server',
+        variant: 'destructive',
+      })
+      return
     }
+    
+    if (wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ WebSocket not open! State:', wsRef.current.readyState)
+      toast({
+        title: 'Connection Error',
+        description: 'WebSocket not ready',
+        variant: 'destructive',
+      })
+      return
+    }
+    
+    console.log('✅ Sending select-team message...')
+    wsRef.current.send(JSON.stringify({
+      type: 'select-team',
+      payload: { teamId },
+    }))
   }
 
   const handleStartAuction = () => {
@@ -286,15 +325,6 @@ export default function RoomPage() {
       toast({
         title: 'Not Allowed',
         description: 'Only the host can start the auction',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (!selectedTeamId) {
-      toast({
-        title: 'Select Team',
-        description: 'Please select your team before starting',
         variant: 'destructive',
       })
       return
@@ -405,7 +435,7 @@ export default function RoomPage() {
     )
   }
 
-  // Render: Lobby (Team Selection)
+  // Render: Lobby - Team Selection OR Waiting
   if (roomState?.phase === 'lobby' || roomState?.phase === 'countdown') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
@@ -415,7 +445,7 @@ export default function RoomPage() {
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-3">
                 <span className="text-4xl">🏏</span>
-                Auction Lobby
+                {inWaitingLobby ? 'Waiting Lobby' : 'Select Your Team'}
               </h1>
               <p className="text-muted-foreground">Room: <span className="font-mono font-bold text-orange-500">{roomCode}</span></p>
             </div>
@@ -425,7 +455,72 @@ export default function RoomPage() {
             </Button>
           </div>
 
-          {/* Room Info */}
+          {/* Screen 1: Team Selection */}
+          {!inWaitingLobby && (
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-2xl font-bold mb-4">Choose Your IPL Team</h2>
+                <p className="text-muted-foreground mb-6">Select a team to represent in the auction</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {teams.map((team) => {
+                    const isTaken = roomState.takenTeams.includes(team.id)
+                    const isSelected = selectedTeamId === team.id
+
+                    return (
+                      <motion.div
+                        key={team.id}
+                        whileHover={!isTaken ? { scale: 1.05 } : {}}
+                        whileTap={!isTaken ? { scale: 0.95 } : {}}
+                      >
+                        <Card
+                          className={`cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-green-500 border-2 bg-green-500/10'
+                              : isTaken
+                              ? 'opacity-50 cursor-not-allowed border-red-500'
+                              : 'hover:border-orange-500'
+                          }`}
+                          onClick={() => !isTaken && handleSelectTeam(team.id)}
+                        >
+                          <CardContent className="p-4 text-center">
+                            <div className="mb-2">
+                              {isSelected && <Badge className="mb-2 bg-green-500">Your Team</Badge>}
+                              {isTaken && !isSelected && <Badge variant="destructive" className="mb-2">Taken</Badge>}
+                            </div>
+                            <h3 className="font-bold">{team.name}</h3>
+                            <p className="text-sm text-muted-foreground">₹{team.budget}Cr</p>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+
+                {/* Join Lobby Button */}
+                {selectedTeamId && (
+                  <div className="mt-8 text-center">
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                      <p className="text-green-500 font-semibold">
+                        ✓ Team selected! Click below to join the waiting lobby
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => router.push(`/room/${roomCode}/lobby`)}
+                      size="lg"
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-xl px-8 py-6"
+                    >
+                      <Users className="mr-2 h-6 w-6" />
+                      Join Waiting Lobby
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Waiting Lobby */}
+          {inWaitingLobby && (
+            <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <Card>
               <CardContent className="p-4">
@@ -478,71 +573,135 @@ export default function RoomPage() {
             </Card>
           </div>
 
-          {/* Team Selection */}
-          <Card>
+          {/* Players List */}
+          <Card className="mb-6">
             <CardContent className="p-6">
-              <h2 className="text-2xl font-bold mb-4">Select Your Team</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {teams.map((team) => {
-                  const isTaken = roomState.takenTeams.includes(team.id)
-                  const isSelected = selectedTeamId === team.id
-
-                  return (
-                    <motion.div
-                      key={team.id}
-                      whileHover={!isTaken ? { scale: 1.05 } : {}}
-                      whileTap={!isTaken ? { scale: 0.95 } : {}}
+              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <Users className="h-6 w-6" />
+                Players in Lobby ({roomState.playerCount}/{roomState.maxPlayers})
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {joinedPlayers.length > 0 ? (
+                  // Show actual players from server data
+                  joinedPlayers.map((player, i) => (
+                    <div
+                      key={player.userId}
+                      className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700"
                     >
-                      <Card
-                        className={`cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-green-500 border-2 bg-green-500/10'
-                            : isTaken
-                            ? 'opacity-50 cursor-not-allowed border-red-500'
-                            : 'hover:border-orange-500'
-                        }`}
-                        onClick={() => !isTaken && handleSelectTeam(team.id)}
-                      >
-                        <CardContent className="p-4 text-center">
-                          <div className="mb-2">
-                            {isSelected && <Badge className="mb-2 bg-green-500">Your Team</Badge>}
-                            {isTaken && !isSelected && <Badge variant="destructive" className="mb-2">Taken</Badge>}
-                          </div>
-                          <h3 className="font-bold">{team.name}</h3>
-                          <p className="text-sm text-muted-foreground">₹{team.budget}Cr</p>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )
-                })}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center font-bold text-white">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold">{player.userName}</p>
+                        <div className="flex gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {player.isHost ? '👑 Host' : 'Guest'}
+                          </Badge>
+                          {player.teamName && (
+                            <Badge className="text-xs bg-blue-500">
+                              {player.teamName}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  // Fallback to generic list if players data not yet loaded
+                  Array.from({ length: roomState.playerCount }, (_, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center font-bold text-white">
+                        {i + 1}
+                      </div>
+                      <div>
+                        <p className="font-semibold">Player {i + 1}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {i === 0 ? 'Host' : 'Guest'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {/* Empty slots */}
+                {Array.from({ length: roomState.maxPlayers - roomState.playerCount }, (_, i) => (
+                  <div
+                    key={`empty-${i}`}
+                    className="flex items-center gap-3 p-3 bg-slate-900 rounded-lg border border-dashed border-slate-700"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-600">
+                      {roomState.playerCount + i + 1}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-600">Waiting...</p>
+                      <Badge variant="outline" className="text-xs text-slate-600">Empty</Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
 
-          {/* Start Button */}
-          {isHost && roomState.canStart && (
-            <div className="mt-6 text-center">
-              <Button
-                onClick={handleStartAuction}
-                size="lg"
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
-                disabled={!selectedTeamId || roomState.phase === 'countdown'}
-              >
-                <Play className="mr-2 h-5 w-5" />
-                {roomState.phase === 'countdown' ? 'Starting...' : 'Start Auction'}
-              </Button>
-            </div>
-          )}
+          {/* Team Selection - Only show if player hasn't selected a team yet */}
 
-          {!isHost && roomState.canStart && (
-            <div className="mt-6 text-center">
-              <p className="text-muted-foreground">Waiting for host to start the auction...</p>
-            </div>
-          )}
+          {/* Start Button Section - Placed directly after player list */}
+          <div className="mt-6">
+            {/* Host sees start button when minimum players joined */}
+            {isHost && (
+              <div className="text-center">
+                {roomState.playerCount >= roomState.minTeams ? (
+                  <div className="space-y-4">
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                      <p className="text-green-500 font-semibold">
+                        ✓ Ready to start! {roomState.playerCount} players joined (minimum: {roomState.minTeams})
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleStartAuction}
+                      size="lg"
+                      className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-xl px-8 py-6"
+                      disabled={roomState.phase === 'countdown'}
+                    >
+                      <Play className="mr-2 h-6 w-6" />
+                      {roomState.phase === 'countdown' ? `Starting in ${auctionState?.countdownSeconds}s...` : 'Start Auction'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                    <p className="text-yellow-500 font-semibold">
+                      Waiting for players... ({roomState.playerCount}/{roomState.minTeams} minimum)
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Need at least {roomState.minTeams} players to start the auction
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
-          {!roomState.canStart && (
-            <div className="mt-6 text-center">
-              <p className="text-muted-foreground">Waiting for minimum {roomState.minTeams} teams to join...</p>
+            {/* Non-host sees waiting message */}
+            {!isHost && (
+              <div className="text-center">
+                {roomState.playerCount >= roomState.minTeams ? (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                    <p className="text-blue-500 font-semibold">
+                      {roomState.phase === 'countdown' 
+                        ? `Auction starting in ${auctionState?.countdownSeconds}s...`
+                        : 'Waiting for host to start the auction...'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                    <p className="text-yellow-500 font-semibold">
+                      Waiting for more players... ({roomState.playerCount}/{roomState.minTeams} minimum)
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
             </div>
           )}
         </div>
@@ -602,7 +761,7 @@ export default function RoomPage() {
           {/* Teams Display */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {teams.map((team) => (
-              <Card key={team.id} className={selectedTeamId === team.id ? 'border-green-500 border-2' : ''}>
+              <Card key={team.id}>
                 <CardContent className="p-4">
                   <h3 className="font-bold mb-2 truncate">{team.name}</h3>
                   <div className="space-y-1 text-sm">
