@@ -35,6 +35,19 @@ interface PlayerAnalysisProps {
   onClose: () => void
 }
 
+// Helper function to calculate age from date of birth
+function calculateAge(dateOfBirth?: string): number | undefined {
+  if (!dateOfBirth) return undefined
+  const birthDate = new Date(dateOfBirth)
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--
+  }
+  return age
+}
+
 export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps) {
   const [details, setDetails] = useState<PlayerDetails | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,61 +62,165 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
     setError(null)
     
     try {
-      // Check if API key is configured
-      const apiKey = process.env.NEXT_PUBLIC_CRICKET_API_KEY
-      const apiUrl = process.env.NEXT_PUBLIC_CRICKET_API_URL
+      console.log(`🔍 Fetching details for: ${player.name}`)
       
-      if (apiKey && apiKey !== 'your_api_key_here' && apiUrl) {
-        // Real API call (example for CricAPI)
-        const response = await fetch(`${apiUrl}/players_info?apikey=${apiKey}&name=${encodeURIComponent(player.name)}`)
+      // Try fetching from our Next.js API endpoint first
+      const response = await fetch(`/api/players?name=${encodeURIComponent(player.name)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }).catch(err => {
+        console.warn('⚠️ API fetch failed, using fallback data:', err)
+        return null
+      })
+      
+      if (response && response.ok) {
+        const result = await response.json()
+        console.log('📡 API Response:', result)
         
-        if (response.ok) {
-          const data = await response.json()
-          // Parse real API data here based on your API provider
-          // This is an example structure - adjust based on actual API response
-          if (data.data && data.data.length > 0) {
-            const playerData = data.data[0]
-            setDetails({
-              name: player.name,
-              role: player.role,
-              age: playerData.age,
-              nationality: playerData.country || "India",
-              battingStyle: playerData.battingStyle || "Right-handed",
-              bowlingStyle: playerData.bowlingStyle || "N/A",
-              recentStats: {
-                matches: playerData.matches || 50,
-                runs: playerData.runs || 1000,
-                wickets: playerData.wickets || 0,
-                average: playerData.battingAverage || 25,
-                strikeRate: playerData.strikeRate || 120,
-              },
-              careerHighlights: playerData.achievements || [
-                "Player of the Match - 3 times",
-                "Fastest 50 in tournament history",
-              ],
-              analysis: playerData.profile || `${player.name} is a ${player.role.toLowerCase()} known for exceptional performance.`
-            })
-            setLoading(false)
-            return
+        if (result.success && result.data && result.data.length > 0) {
+          const playerData = result.data[0]
+          console.log('✅ Using REAL API data for:', playerData.name)
+          
+          // Now fetch detailed player info with stats
+          const infoResponse = await fetch(`/api/player-info?id=${playerData.id}`).catch(() => null)
+          let detailedInfo = null
+          
+          if (infoResponse && infoResponse.ok) {
+            const infoResult = await infoResponse.json()
+            if (infoResult.success && infoResult.data) {
+              detailedInfo = infoResult.data
+              console.log('✅ Got detailed player info:', detailedInfo)
+            }
           }
+          
+          // Map the API response to our PlayerDetails interface - NO DUMMY DATA
+          setDetails({
+            name: playerData.name || player.name,
+            role: playerData.playerRole || player.role,
+            age: calculateAge(playerData.dateOfBirth),
+            nationality: playerData.country || "Unknown",
+            battingStyle: playerData.battingStyle || "Not specified",
+            bowlingStyle: playerData.bowlingStyle || "Not specified",
+            recentStats: detailedInfo ? {
+              matches: detailedInfo.stats?.matches || 0,
+              runs: detailedInfo.stats?.runs || 0,
+              wickets: detailedInfo.stats?.wickets || 0,
+              average: detailedInfo.stats?.batting?.average || 0,
+              strikeRate: detailedInfo.stats?.batting?.strikeRate || 0,
+            } : undefined,
+            careerHighlights: [
+              "✓ Real Cricket API Data",
+              playerData.placeOfBirth ? `Born: ${playerData.placeOfBirth}` : null,
+              playerData.dateOfBirth ? `DOB: ${new Date(playerData.dateOfBirth).toLocaleDateString()}` : null,
+              detailedInfo?.teams ? `Teams: ${detailedInfo.teams.join(', ')}` : null,
+            ].filter(Boolean) as string[],
+            analysis: `${playerData.name || player.name} is a ${(playerData.playerRole || player.role).toLowerCase()} from ${playerData.country || 'Unknown'}. ${playerData.battingStyle ? `Batting: ${playerData.battingStyle}.` : ''} ${playerData.bowlingStyle && playerData.bowlingStyle !== 'null' ? `Bowling: ${playerData.bowlingStyle}.` : ''} This is real data from Cricket API.`
+          })
+          setLoading(false)
+          return
+        } else {
+          console.log('⚠️ API returned no data, using fallback')
+        }
+      } else {
+        console.log('⚠️ API request failed, using fallback')
+      }
+      
+      // Fallback to enhanced mock data based on real player info
+      console.log('📚 Using curated IPL data for:', player.name)
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Enhanced player profiles based on real IPL data
+      const playerProfiles: Record<string, Partial<PlayerDetails>> = {
+        "Virat Kohli": {
+          age: 36,
+          nationality: "India",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Medium",
+          recentStats: { matches: 223, runs: 7263, wickets: 4, average: 37, strikeRate: 131 },
+          careerHighlights: ["IPL 2016 Orange Cap - 973 runs", "Royal Challengers Captain", "Over 7000 IPL runs"],
+          analysis: "Virat Kohli is one of the greatest batsmen in IPL history. Known for his aggressive batting and exceptional chasing abilities."
+        },
+        "Rohit Sharma": {
+          age: 37,
+          nationality: "India",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Off-break",
+          recentStats: { matches: 243, runs: 6628, wickets: 15, average: 30, strikeRate: 130 },
+          careerHighlights: ["5-time IPL Champion", "Mumbai Indians Captain", "Most sixes in IPL"],
+          analysis: "Rohit Sharma is the most successful IPL captain with 5 titles. Master of big hits and tactical brilliance."
+        },
+        "MS Dhoni": {
+          age: 43,
+          nationality: "India",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Medium",
+          recentStats: { matches: 250, runs: 5243, wickets: 0, average: 38, strikeRate: 135 },
+          careerHighlights: ["5-time IPL Champion", "CSK Icon", "Captain Cool"],
+          analysis: "MS Dhoni is the legendary finisher and tactician. Led CSK to 5 IPL titles with his calm demeanor and brilliant wicketkeeping."
+        },
+        "Jasprit Bumrah": {
+          age: 31,
+          nationality: "India",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Fast",
+          recentStats: { matches: 133, runs: 68, wickets: 165, average: 24, strikeRate: 150 },
+          careerHighlights: ["Best death bowler in IPL", "Purple Cap contender", "5-time IPL Champion"],
+          analysis: "Jasprit Bumrah is the premier fast bowler in IPL. Known for yorkers and exceptional death bowling."
+        },
+        "Hardik Pandya": {
+          age: 31,
+          nationality: "India",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Fast-medium",
+          recentStats: { matches: 139, runs: 2525, wickets: 65, average: 28, strikeRate: 145 },
+          careerHighlights: ["IPL 2024 Champion", "Devastating finisher", "Match-winner"],
+          analysis: "Hardik Pandya is a dynamic all-rounder. Explosive batting in lower order and crucial wickets make him invaluable."
+        },
+        "Rashid Khan": {
+          age: 26,
+          nationality: "Afghanistan",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Leg-spin",
+          recentStats: { matches: 110, runs: 342, wickets: 144, average: 21, strikeRate: 125 },
+          careerHighlights: ["IPL 2022 Champion", "Best T20 spinner", "Economy under 7"],
+          analysis: "Rashid Khan is the world's premier T20 spinner. Consistently picks wickets while maintaining economy."
+        },
+        "KL Rahul": {
+          age: 32,
+          nationality: "India",
+          battingStyle: "Right-handed",
+          bowlingStyle: "Right-arm Off-break",
+          recentStats: { matches: 132, runs: 4683, wickets: 0, average: 47, strikeRate: 134 },
+          careerHighlights: ["IPL 2020 Orange Cap", "LSG Captain", "Consistent performer"],
+          analysis: "KL Rahul is an elegant top-order batsman. Known for his consistency and ability to anchor innings."
+        },
+        "Rishabh Pant": {
+          age: 27,
+          nationality: "India",
+          battingStyle: "Left-handed",
+          bowlingStyle: "N/A",
+          recentStats: { matches: 110, runs: 3284, wickets: 0, average: 35, strikeRate: 148 },
+          careerHighlights: ["DC Captain", "Explosive wicketkeeper-batsman", "Match-winner"],
+          analysis: "Rishabh Pant is an aggressive left-handed wicketkeeper-batsman. Known for his fearless approach and match-turning innings."
         }
       }
       
-      // Fallback to mock data if API is not configured or fails
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const profile = playerProfiles[player.name]
       
       const mockDetails: PlayerDetails = {
         name: player.name,
         role: player.role,
-        age: 25 + Math.floor(Math.random() * 10),
-        nationality: "India",
-        battingStyle: player.role.includes("Batsman") || player.role === "All-rounder" 
+        age: profile?.age || (25 + Math.floor(Math.random() * 10)),
+        nationality: profile?.nationality || "India",
+        battingStyle: profile?.battingStyle || (player.role.includes("Batsman") || player.role === "All-rounder" 
           ? ["Right-handed", "Left-handed"][Math.floor(Math.random() * 2)]
-          : "N/A",
-        bowlingStyle: player.role.includes("Bowler") || player.role === "All-rounder"
+          : "N/A"),
+        bowlingStyle: profile?.bowlingStyle || (player.role.includes("Bowler") || player.role === "All-rounder"
           ? ["Fast", "Medium", "Spin"][Math.floor(Math.random() * 3)]
-          : "N/A",
-        recentStats: {
+          : "N/A"),
+        recentStats: profile?.recentStats || {
           matches: 50 + Math.floor(Math.random() * 100),
           runs: player.role.includes("Batsman") || player.role === "All-rounder" 
             ? 1000 + Math.floor(Math.random() * 3000) 
@@ -114,12 +231,12 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
           average: 25 + Math.floor(Math.random() * 30),
           strikeRate: 120 + Math.floor(Math.random() * 60),
         },
-        careerHighlights: [
+        careerHighlights: profile?.careerHighlights || [
           "Player of the Match - 3 times",
           "Fastest 50 in tournament history",
           "Hat-trick in finals 2024",
         ],
-        analysis: `${player.name} is a ${player.role.toLowerCase()} known for exceptional performance under pressure. With consistent form in recent seasons, they bring both experience and energy to any team.`
+        analysis: profile?.analysis || `${player.name} is a ${player.role.toLowerCase()} known for exceptional performance under pressure. With consistent form in recent seasons, they bring both experience and energy to any team.`
       }
       
       setDetails(mockDetails)
@@ -238,26 +355,41 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
               {/* Recent Stats */}
               {details.recentStats && (
                 <div className="bg-slate-700/30 rounded-lg p-6">
-                  <h3 className="text-xl font-bold text-orange-400 mb-4">Recent Performance</h3>
+                  <h3 className="text-xl font-bold text-orange-400 mb-4">
+                    Recent Performance
+                    {details.recentStats.matches === 0 && (
+                      <span className="text-sm text-gray-400 ml-2">(API Stats Not Available)</span>
+                    )}
+                  </h3>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="text-center">
-                      <p className="text-3xl font-black text-white mb-1">{details.recentStats.matches}</p>
+                      <p className="text-3xl font-black text-white mb-1">
+                        {details.recentStats.matches || 'N/A'}
+                      </p>
                       <p className="text-gray-400 text-sm">Matches</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-3xl font-black text-orange-400 mb-1">{details.recentStats.runs}</p>
+                      <p className="text-3xl font-black text-orange-400 mb-1">
+                        {details.recentStats.runs || 'N/A'}
+                      </p>
                       <p className="text-gray-400 text-sm">Runs</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-3xl font-black text-red-400 mb-1">{details.recentStats.wickets}</p>
+                      <p className="text-3xl font-black text-red-400 mb-1">
+                        {details.recentStats.wickets || 'N/A'}
+                      </p>
                       <p className="text-gray-400 text-sm">Wickets</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-3xl font-black text-blue-400 mb-1">{details.recentStats.average}</p>
+                      <p className="text-3xl font-black text-blue-400 mb-1">
+                        {details.recentStats.average || 'N/A'}
+                      </p>
                       <p className="text-gray-400 text-sm">Average</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-3xl font-black text-green-400 mb-1">{details.recentStats.strikeRate}</p>
+                      <p className="text-3xl font-black text-green-400 mb-1">
+                        {details.recentStats.strikeRate || 'N/A'}
+                      </p>
                       <p className="text-gray-400 text-sm">Strike Rate</p>
                     </div>
                   </div>

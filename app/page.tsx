@@ -96,14 +96,25 @@ function LobbyScreen({ onStart }: { onStart: () => void }) {
           ))}
         </div>
 
-        <motion.button
-          onClick={onStart}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-4 px-12 rounded-lg text-xl shadow-2xl"
-        >
-          START AUCTION
-        </motion.button>
+        <div className="space-y-4">
+          <motion.button
+            onClick={onStart}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-4 px-12 rounded-lg text-xl shadow-2xl"
+          >
+            START SOLO AUCTION
+          </motion.button>
+
+          <motion.a
+            href="/rooms"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="block w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-4 px-12 rounded-lg text-xl shadow-2xl"
+          >
+            🚪 JOIN MULTIPLAYER ROOM
+          </motion.a>
+        </div>
 
         <motion.p
           animate={{ opacity: [0.5, 1, 0.5] }}

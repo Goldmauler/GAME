@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "start": "next start",
     "start-server": "node server/auction-server.js",
+    "start-room-server": "node server/auction-room-server.js",
     "test-server": "node server/tests/run-tests.js",
     "test-rating": "node server/tests/test-team-rating.js",
     "test-e2e": "node server/tests/test-e2e.js",

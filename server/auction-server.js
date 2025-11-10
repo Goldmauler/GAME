@@ -1,5 +1,6 @@
 const WebSocket = require("ws")
 const { calculateTeamRating } = require("./team-rating")
+const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
 
 const PORT = process.env.AUCTION_PORT || 8080
 
@@ -29,13 +30,8 @@ const teams = TEAMS.map((name, i) => ({
   maxPlayers: 25,
 }))
 
-// Generate players
-const PLAYERS = Array.from({ length: 120 }, (_, i) => ({
-  id: `player-${i}`,
-  name: [`Virat Kohli`, `Rohit Sharma`, `MS Dhoni`, `Rishabh Pant`, `Suryakumar Yadav`, `Jasprit Bumrah`, `Yuzvendra Chahal`, `Hardik Pandya`][i % 8] || `Player ${i}`,
-  role: ["Batsman", "Bowler", "All-rounder", "Wicket-keeper"][i % 4],
-  basePrice: Math.max(1, Math.round(1 + Math.random() * 9)), // 1-10 Cr
-}))
+// Use real IPL players
+const PLAYERS = fetchRealPlayers()
 
 let clients = new Map() // ws -> {teamId}
 
