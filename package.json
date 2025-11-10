@@ -6,7 +6,12 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "start-server": "node server/auction-server.js",
+    "test-server": "node server/tests/run-tests.js",
+    "test-rating": "node server/tests/test-team-rating.js",
+    "test-e2e": "node server/tests/test-e2e.js",
+    "test-all": "npm run test-server && npm run test-rating && npm run test-e2e"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -61,6 +66,9 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "zod": "3.25.76"
+  },
+  "optionalDependencies": {
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",

@@ -1,8 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useInterval } from "@/hooks/use-interval"
+import TeamSelection from "./team-selection"
+import PlayerAnalysis from "./player-analysis"
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any
+    }
+  }
+}
 
 interface Team {
   id: string
@@ -150,11 +160,15 @@ const PLAYERS: Player[] = [
 ]
 
 export default function AuctionArena({ onComplete }: { onComplete: () => void }) {
+  // Game phase: 'team-selection' -> 'active' -> 'completed'
+  const [gamePhase, setGamePhase] = useState<"team-selection" | "active" | "completed">("team-selection")
+  
+  // Local fallback state (used before WS connects)
   const [teams, setTeams] = useState<Team[]>(TEAMS)
   const [playerIndex, setPlayerIndex] = useState(0)
   const [currentBid, setCurrentBid] = useState<CurrentBid>({
     playerIndex: 0,
-    currentPrice: PLAYERS[0]?.basePrice || 20,
+    currentPrice: PLAYERS[0]?.basePrice || 1,
     highestBidder: "",
     bidHistory: [],
     timeLeft: 30,
@@ -162,37 +176,109 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
   const [auctionPhase, setAuctionPhase] = useState<"active" | "completed">("active")
   const [lastBidTeam, setLastBidTeam] = useState<string>("")
 
-  useInterval(() => {
-    if (auctionPhase === "active" && currentBid.timeLeft > 0) {
-      setCurrentBid((prev) => ({ ...prev, timeLeft: prev.timeLeft - 1 }))
-    } else if (auctionPhase === "active" && currentBid.timeLeft === 0) {
-      handlePlayerSold()
-    }
-  }, 1000)
+  // WebSocket connection to auction server (optional)
+  const wsRef = useRef<WebSocket | null>(null)
+  const [wsConnected, setWsConnected] = useState(false)
+  const [localTeamId, setLocalTeamId] = useState<string>("")
+  const [teamLocked, setTeamLocked] = useState(false)
+  const [results, setResults] = useState<any | null>(null)
+  
+  // Player analysis modal
+  const [selectedPlayerForAnalysis, setSelectedPlayerForAnalysis] = useState<Player | null>(null)
 
-  useInterval(() => {
-    if (auctionPhase === "active" && currentBid.timeLeft > 5 && Math.random() > 0.5) {
-      const currentPrice = currentBid.currentPrice
-      const potentialBidders = teams.filter((t) => {
-        const hasEnoughBudget = t.budget >= currentPrice + 5
-        const hasSlots = t.players.length < 25
-        const isNotCurrentBidder = t.id !== currentBid.highestBidder
-        return hasEnoughBudget && hasSlots && isNotCurrentBidder
-      })
+  // Handle team selection
+  const handleTeamSelect = (teamId: string) => {
+    setLocalTeamId(teamId)
+    setTeamLocked(true)
+    setGamePhase("active")
+    
+    // Connect to WebSocket after team selection
+    connectToServer(teamId)
+  }
 
-      if (potentialBidders.length > 0) {
-        const randomTeam = potentialBidders[Math.floor(Math.random() * potentialBidders.length)]
-        const bidAmount = currentPrice + 5
-        handleBid(randomTeam.id, bidAmount)
+  const connectToServer = (teamId: string) => {
+    // Attempt to connect to local auction server on port 8080
+    try {
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws"
+      const host = window.location.hostname || "localhost"
+      const url = `${protocol}://${host}:8080`
+      const ws = new WebSocket(url)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        console.log("Connected to auction server", url)
+        setWsConnected(true)
+        ws.send(JSON.stringify({ type: "join", teamId: teamId }))
       }
+
+      ws.onmessage = (evt: MessageEvent) => {
+        try {
+          const msg = JSON.parse(evt.data)
+          if (msg.type === "welcome") {
+            const { teams: sTeams, auctionState } = msg.payload
+            setTeams(sTeams)
+            setPlayerIndex(auctionState.playerIndex)
+            setCurrentBid((prev: CurrentBid) => ({
+              ...prev,
+              playerIndex: auctionState.playerIndex,
+              currentPrice: auctionState.currentPrice,
+              highestBidder: auctionState.highestBidder || "",
+              bidHistory: auctionState.bidHistory || [],
+              timeLeft: auctionState.timeLeft || 30,
+            }))
+          }
+
+          if (msg.type === 'state') {
+            const { teams: sTeams, auctionState } = msg.payload
+            setTeams(sTeams)
+            setPlayerIndex(auctionState.playerIndex)
+            setCurrentBid((prev: CurrentBid) => ({
+              ...prev,
+              playerIndex: auctionState.playerIndex,
+              currentPrice: auctionState.currentPrice,
+              highestBidder: auctionState.highestBidder || "",
+              bidHistory: auctionState.bidHistory || [],
+              timeLeft: auctionState.timeLeft || 30,
+            }))
+            if (auctionState.phase === 'completed') {
+              setAuctionPhase('completed')
+              setGamePhase('completed')
+            }
+          }
+
+          if (msg.type === 'results') {
+            // final ratings and analytics from server
+            setResults(msg.payload)
+          }
+        } catch (e) {
+          console.error("WS message parse error", e)
+        }
+      }
+
+      ws.onclose = () => {
+        console.log("Disconnected from auction server")
+        setWsConnected(false)
+        wsRef.current = null
+      }
+    } catch (e) {
+      console.warn("WebSocket connection failed", e)
     }
-  }, 2000)
+  }
+
+  // Removed: team change detection - team is now locked after selection
 
   const handlePlayerSold = () => {
+    // If connected to a server, let server decide and broadcast next player
+    if (wsRef.current && wsConnected) {
+      // server will handle closing logic; client just updates UI when server broadcasts
+      return
+    }
+
+    // Fallback local auctioneer (single-client simulation)
     if (currentBid.highestBidder) {
-      const bidderTeam = teams.find((t) => t.id === currentBid.highestBidder)
+      const bidderTeam = teams.find((t: Team) => t.id === currentBid.highestBidder)
       if (bidderTeam) {
-        const newTeams = teams.map((t) =>
+        const newTeams = teams.map((t: Team) =>
           t.id === currentBid.highestBidder
             ? {
                 ...t,
@@ -209,13 +295,13 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
     if (playerIndex < PLAYERS.length - 1) {
       const nextIndex = playerIndex + 1
       setPlayerIndex(nextIndex)
-      setCurrentBid({
+      setCurrentBid((_: CurrentBid) => ({
         playerIndex: nextIndex,
         currentPrice: PLAYERS[nextIndex]?.basePrice || 20,
         highestBidder: "",
         bidHistory: [],
         timeLeft: 30,
-      })
+      }))
       setLastBidTeam("")
     } else {
       setAuctionPhase("completed")
@@ -224,9 +310,20 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
   }
 
   const handleBid = (teamId: string, amount: number) => {
-    const team = teams.find((t) => t.id === teamId)
+    // If connected, forward to server and return (server will broadcast update)
+    if (wsRef.current && wsConnected) {
+      try {
+        wsRef.current.send(JSON.stringify({ type: "bid", payload: { teamId, amount } }))
+      } catch (e) {
+        console.warn("Failed to send bid to server", e)
+      }
+      return
+    }
+
+    // Fallback client-side bidding
+    const team = teams.find((t: Team) => t.id === teamId)
     if (team && team.budget >= amount && team.players.length < 25) {
-      setCurrentBid((prev) => ({
+      setCurrentBid((prev: CurrentBid) => ({
         ...prev,
         currentPrice: amount,
         highestBidder: teamId,
@@ -234,15 +331,32 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
         timeLeft: Math.max(5, 30), // Reset timer on new bid
       }))
       setLastBidTeam(teamId)
-      setTeams((prev) => prev.map((t) => (t.id === teamId ? { ...t, recentBids: t.recentBids + 1 } : t)))
+      setTeams((prev: Team[]) => prev.map((t: Team) => (t.id === teamId ? { ...t, recentBids: t.recentBids + 1 } : t)))
     }
   }
 
   const currentPlayer = PLAYERS[playerIndex]
-  const highestBidderTeam = teams.find((t) => t.id === currentBid.highestBidder)
+  const highestBidderTeam = teams.find((t: Team) => t.id === currentBid.highestBidder)
+
+  // Show team selection screen first
+  if (gamePhase === "team-selection") {
+    return <TeamSelection teams={teams} onTeamSelect={handleTeamSelect} />
+  }
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <>
+      {/* Player Analysis Modal */}
+      <AnimatePresence>
+        {selectedPlayerForAnalysis && (
+          <PlayerAnalysis
+            player={selectedPlayerForAnalysis}
+            onClose={() => setSelectedPlayerForAnalysis(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Main Auction UI */}
+      <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Main Auction Stage */}
         <motion.div
@@ -260,11 +374,18 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
               className="lg:col-span-1"
             >
               <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl overflow-hidden shadow-2xl">
-                <div className="aspect-video bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center relative overflow-hidden">
+                <div 
+                  className="aspect-video bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center relative overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setSelectedPlayerForAnalysis(currentPlayer)}
+                  title="Click to view player details"
+                >
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-9xl animate-pulse">🏏</div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                  <div className="absolute bottom-4 right-4 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold">
+                    📊 View Details
+                  </div>
                 </div>
                 <div className="p-6 bg-slate-900">
                   <h2 className="text-3xl font-black text-white mb-2">{currentPlayer?.name}</h2>
@@ -275,7 +396,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                     <span className="text-gray-300">#{playerIndex + 1}/100</span>
                   </div>
                   <div className="text-sm text-gray-400">
-                    Base Price: <span className="text-orange-400 font-bold">₹{currentPlayer?.basePrice}L</span>
+                    Base Price: <span className="text-orange-400 font-bold">₹{currentPlayer?.basePrice}Cr</span>
                   </div>
                 </div>
               </div>
@@ -296,7 +417,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                   animate={{ scale: 1, opacity: 1 }}
                   className="text-6xl font-black text-orange-500 mb-4"
                 >
-                  ₹{currentBid.currentPrice}L
+                  ₹{currentBid.currentPrice}Cr
                 </motion.div>
                 <div className="flex items-center justify-between mb-4">
                   {highestBidderTeam ? (
@@ -344,6 +465,28 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
               </motion.div>
 
               {/* Bid Buttons */}
+              {/* Your Team Controls */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-400">Your Team:</label>
+                  <div className="bg-slate-800 text-white px-4 py-2 rounded font-bold border border-orange-500/30">
+                    {teams.find((t: Team) => t.id === localTeamId)?.name || "Not Selected"}
+                  </div>
+                  <span className="text-xs text-yellow-400">🔒 Locked</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const bidAmount = currentBid.currentPrice + 5
+                    handleBid(localTeamId, bidAmount)
+                  }}
+                  className="ml-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-bold transition-all"
+                  disabled={!localTeamId}
+                >
+                  Bid +₹5Cr (My Team)
+                </button>
+                <div className="ml-auto text-sm text-gray-400">WS: {wsConnected ? "Connected" : "Offline"}</div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 {[1, 2, 3, 4].map((multiplier) => (
                   <motion.button
@@ -367,12 +510,50 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
             </div>
           </div>
         </motion.div>
+        {/* Results (shown when server broadcasts results) */}
+        {results && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-indigo-900/80 rounded-lg p-6 border border-indigo-500/30 mt-6 text-white"
+          >
+            <div className="flex items-start justify-between">
+              <h3 className="text-xl font-bold">Auction Results & Ratings</h3>
+              <button
+                onClick={() => setResults(null)}
+                className="bg-white/10 text-white px-3 py-1 rounded"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              {results.ratings?.map((r: any) => {
+                const team = teams.find((t: Team) => t.id === r.teamId)
+                return (
+                  <div key={r.teamId} className="bg-indigo-800/40 p-4 rounded">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold">{team?.name || r.teamId}</div>
+                        <div className="text-sm text-indigo-200">Overall: {r.overallScore}</div>
+                      </div>
+                      <div className="text-sm text-indigo-100">Bat: {r.battingScore} • Bowl: {r.bowlingScore}</div>
+                    </div>
+                    <div className="mt-2 text-sm text-indigo-200">
+                      Strengths: {r.strengths?.join(", ")}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Teams Grid with Activity Indicator */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          {teams.map((team, idx) => {
-            const isLeading = team.id === currentBid.highestBidder
-            const justBid = team.id === lastBidTeam
+        {teams.map((team: Team, idx: number) => {
+      const isLeading = team.id === currentBid.highestBidder
+      const justBid = team.id === lastBidTeam
             return (
               <motion.div
                 key={team.id}
@@ -401,8 +582,11 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                     Players: <span className="font-bold">{team.players.length}/25</span>
                   </p>
                   <p>
-                    Budget: <span className="font-bold">₹{team.budget}L</span>
+                    Budget: <span className="font-bold">₹{team.budget}Cr</span>
                   </p>
+                  {team.id === localTeamId && (
+                    <div className="absolute top-2 left-2 bg-indigo-700 text-white text-xs font-bold px-2 py-1 rounded">YOU</div>
+                  )}
                   {isLeading && (
                     <motion.p
                       animate={{ opacity: [0.5, 1, 0.5] }}
@@ -435,8 +619,8 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
             <h3 className="font-bold text-orange-400 mb-4">Bid History</h3>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               <AnimatePresence>
-                {currentBid.bidHistory.map((bid, idx) => {
-                  const bidTeam = teams.find((t) => t.id === bid.team)
+                {currentBid.bidHistory.map((bid: BidRecord, idx: number) => {
+                  const bidTeam = teams.find((t: Team) => t.id === bid.team)
                   return (
                     <motion.div
                       key={idx}
@@ -449,7 +633,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                         <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${bidTeam?.color}`}></div>
                         <span className="text-gray-300">{bidTeam?.name}</span>
                       </div>
-                      <span className="text-orange-400 font-bold">₹{bid.price}L</span>
+                      <span className="text-orange-400 font-bold">₹{bid.price}Cr</span>
                     </motion.div>
                   )
                 })}
@@ -475,5 +659,6 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
         </motion.div>
       </div>
     </div>
+    </>
   )
 }
