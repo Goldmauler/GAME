@@ -1,8 +1,10 @@
 const WebSocket = require("ws")
 const { calculateTeamRating } = require("./team-rating")
 const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
+const fetch = require("node-fetch")
 
 const PORT = process.env.AUCTION_PORT || 8080
+const API_BASE_URL = process.env.API_URL || "http://localhost:3000"
 
 const wss = new WebSocket.Server({ port: PORT })
 
@@ -51,30 +53,150 @@ function createPlayers() {
   return fetchRealPlayers()
 }
 
+// Database helper functions
+async function saveRoomToDatabase(room) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/rooms/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        roomCode: room.roomCode,
+        hostName: room.hostName,
+        hostId: room.hostId,
+        minTeams: room.minTeams,
+        status: 'lobby',
+        teams: room.teams,
+        players: room.players,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Failed to save room: ${response.status} ${errorText}`)
+    }
+
+    const result = await response.json()
+    console.log(`✅ Room ${room.roomCode} saved to database`)
+    return result
+  } catch (error) {
+    console.error(`❌ Error saving room ${room.roomCode}:`, error.message)
+    throw error
+  }
+}
+
 // Room class
 class AuctionRoom {
-  constructor(roomCode, hostName) {
+  constructor(roomCode, hostName, hostId) {
     this.roomCode = roomCode
     this.hostName = hostName
+    this.hostId = hostId
     this.teams = createTeams()
     this.players = createPlayers()
-    this.clients = new Map() // ws -> {teamId, userName}
+    this.clients = new Map() // ws -> {teamId, userName, userId, isHost}
     this.takenTeams = new Set() // Track which teams are taken
+    this.minTeams = 2 // Minimum teams to start auction
+    this.startCountdown = null // Countdown timer
     this.auctionState = {
       playerIndex: 0,
       currentPrice: this.players[0].basePrice,
       highestBidder: null,
       bidHistory: [],
       timeLeft: 30,
-      phase: "waiting", // waiting, active, completed
+      phase: "lobby", // lobby, countdown, active, completed
+      countdownSeconds: 10,
     }
     this.tickInterval = null
+    this.countdownInterval = null
     this.createdAt = Date.now()
   }
 
-  addClient(ws, teamId, userName) {
-    this.clients.set(ws, { teamId, userName })
+  addClient(ws, teamId, userName, userId) {
+    const isHost = userId === this.hostId
+    this.clients.set(ws, { teamId, userName, userId, isHost })
     this.takenTeams.add(teamId)
+    
+    // Check if minimum teams reached and host hasn't started yet
+    if (this.auctionState.phase === 'lobby' && this.clients.size >= this.minTeams) {
+      this.notifyReadyToStart()
+    }
+  }
+
+  notifyReadyToStart() {
+    const message = JSON.stringify({
+      type: 'ready_to_start',
+      payload: {
+        message: `${this.clients.size} teams ready! Host can start the auction.`,
+        canStart: true
+      }
+    })
+    
+    this.clients.forEach((client, ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message)
+      }
+    })
+  }
+
+  selectTeam(ws, teamId) {
+    const client = this.clients.get(ws)
+    if (!client) return false
+    
+    // Check if team is already taken
+    if (this.takenTeams.has(teamId) && client.teamId !== teamId) {
+      return false
+    }
+    
+    // Remove old team selection
+    if (client.teamId) {
+      this.takenTeams.delete(client.teamId)
+    }
+    
+    // Set new team
+    client.teamId = teamId
+    this.takenTeams.add(teamId)
+    this.clients.set(ws, client)
+    
+    return true
+  }
+
+  startCountdownTimer() {
+    if (this.auctionState.phase !== 'lobby') return false
+    if (this.clients.size < this.minTeams) return false
+    
+    this.auctionState.phase = 'countdown'
+    this.auctionState.countdownSeconds = 10
+    
+    this.countdownInterval = setInterval(() => {
+      this.auctionState.countdownSeconds -= 1
+      
+      this.broadcastCountdown()
+      
+      if (this.auctionState.countdownSeconds <= 0) {
+        clearInterval(this.countdownInterval)
+        this.countdownInterval = null
+        this.startAuction()
+      }
+    }, 1000)
+    
+    return true
+  }
+
+  broadcastCountdown() {
+    const message = JSON.stringify({
+      type: 'countdown',
+      payload: {
+        seconds: this.auctionState.countdownSeconds,
+        message: `Auction starting in ${this.auctionState.countdownSeconds}...`
+      }
+    })
+    
+    this.clients.forEach((_, ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message)
+      }
+    })
   }
 
   removeClient(ws) {
@@ -92,9 +214,24 @@ class AuctionRoom {
   }
 
   startAuction() {
-    if (this.auctionState.phase === 'waiting') {
+    if (this.auctionState.phase === 'lobby' || this.auctionState.phase === 'countdown') {
       this.auctionState.phase = 'active'
       this.startTicking()
+      
+      // Broadcast auction started
+      const message = JSON.stringify({
+        type: 'auction_started',
+        payload: {
+          message: 'Auction has begun! Good luck!',
+          currentPlayer: this.players[this.auctionState.playerIndex]
+        }
+      })
+      
+      this.clients.forEach((_, ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(message)
+        }
+      })
     }
   }
 
@@ -175,6 +312,13 @@ class AuctionRoom {
         const player = this.players[this.auctionState.playerIndex]
         team.players.push({ ...player, soldPrice: this.auctionState.currentPrice, soldTo: team.id })
         team.budget -= this.auctionState.currentPrice
+        
+        // Save player purchase to database (only for human-controlled teams)
+        if (this.takenTeams.has(team.id)) {
+          this.savePlayerPurchase(team, player, this.auctionState.currentPrice).catch(err => {
+            console.error(`Failed to save player purchase:`, err.message)
+          })
+        }
       }
     }
 
@@ -202,6 +346,11 @@ class AuctionRoom {
     }))
 
     this.broadcastResults(ratings)
+    
+    // Save results to database
+    this.saveAuctionResults(ratings).catch(err => {
+      console.error(`Failed to save results for room ${this.roomCode}:`, err.message)
+    })
   }
 
   broadcastState() {
@@ -235,15 +384,116 @@ class AuctionRoom {
     })
   }
 
+  async saveAuctionResults(ratings) {
+    try {
+      // Prepare teams data with only human-controlled teams
+      const teamsData = []
+      
+      this.clients.forEach((client, ws) => {
+        const team = this.teams.find(t => t.id === client.teamId)
+        if (team) {
+          const teamRating = ratings.find(r => r.teamId === team.id)
+          teamsData.push({
+            teamId: team.id,
+            teamName: team.name,
+            userName: client.userName,
+            userId: client.userId,
+            players: team.players,
+            budget: team.budget,
+            rating: teamRating || { overallRating: 0, battingRating: 0, bowlingRating: 0, balance: 0 }
+          })
+        }
+      })
+
+      // Save to database via API
+      const response = await fetch(`${API_BASE_URL}/api/auction/save-results`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomCode: this.roomCode,
+          hostName: this.hostName,
+          teams: teamsData,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to save results: ${response.status} ${errorText}`)
+      }
+
+      const result = await response.json()
+      console.log(`✅ Results saved for room ${this.roomCode}`)
+      return result
+    } catch (error) {
+      console.error(`❌ Error saving results for room ${this.roomCode}:`, error.message)
+      throw error
+    }
+  }
+
+  async savePlayerPurchase(team, player, soldPrice) {
+    try {
+      // Get the userName for this team
+      let userName = 'AI'
+      this.clients.forEach((client, ws) => {
+        if (client.teamId === team.id) {
+          userName = client.userName
+        }
+      })
+
+      const response = await fetch(`${API_BASE_URL}/api/auction/save-player-purchase`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomCode: this.roomCode,
+          playerName: player.name,
+          playerRole: player.role,
+          basePrice: player.basePrice,
+          soldPrice: soldPrice,
+          teamId: team.id,
+          teamName: team.name,
+          userName: userName,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Failed to save player purchase: ${response.status} ${errorText}`)
+      } else {
+        console.log(`✅ Saved purchase: ${player.name} → ${team.name} (₹${soldPrice}Cr)`)
+      }
+    } catch (error) {
+      console.error(`❌ Error saving player purchase:`, error.message)
+    }
+  }
+
   getRoomInfo() {
     return {
       roomCode: this.roomCode,
       hostName: this.hostName,
+      hostId: this.hostId,
       playerCount: this.clients.size,
       maxPlayers: 10,
+      minTeams: this.minTeams,
       phase: this.auctionState.phase,
       takenTeams: Array.from(this.takenTeams),
+      availableTeams: this.teams.filter(t => !this.takenTeams.has(t.id)),
       createdAt: this.createdAt,
+      canStart: this.clients.size >= this.minTeams,
+    }
+  }
+
+  cleanup() {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval)
+      this.tickInterval = null
+    }
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval)
+      this.countdownInterval = null
     }
   }
 }
@@ -293,6 +543,10 @@ function handleMessage(ws, msg) {
       handleJoinRoom(ws, payload)
       break
     
+    case 'select-team':
+      handleSelectTeam(ws, payload)
+      break
+    
     case 'start-auction':
       handleStartAuction(ws)
       break
@@ -315,26 +569,34 @@ function handleMessage(ws, msg) {
 }
 
 function handleCreateRoom(ws, payload) {
-  const { hostName } = payload
+  const { hostName, userId } = payload
   const roomCode = generateRoomCode()
-  const room = new AuctionRoom(roomCode, hostName || 'Host')
+  const hostId = userId || `host-${Date.now()}`
+  const room = new AuctionRoom(roomCode, hostName || 'Host', hostId)
   
   rooms.set(roomCode, room)
   clientRooms.set(ws, roomCode)
 
   console.log(`✅ Room ${roomCode} created by ${hostName}`)
 
+  // Save room to database
+  saveRoomToDatabase(room).catch(err => {
+    console.error(`Failed to save room ${roomCode} to database:`, err.message)
+  })
+
   ws.send(JSON.stringify({
     type: 'room-created',
     payload: {
       roomCode,
+      hostId,
       roomInfo: room.getRoomInfo(),
+      availableTeams: room.teams,
     },
   }))
 }
 
 function handleJoinRoom(ws, payload) {
-  const { roomCode, teamId, userName } = payload
+  const { roomCode, userName, userId } = payload
 
   const room = rooms.get(roomCode)
   if (!room) {
@@ -353,24 +615,26 @@ function handleJoinRoom(ws, payload) {
     return
   }
 
-  if (room.takenTeams.has(teamId)) {
+  if (room.auctionState.phase !== 'lobby') {
     ws.send(JSON.stringify({
       type: 'error',
-      payload: { message: 'Team already taken by another player' },
+      payload: { message: 'Auction already in progress' },
     }))
     return
   }
 
-  room.addClient(ws, teamId, userName || 'Player')
+  const playerId = userId || `player-${Date.now()}`
+  room.addClient(ws, null, userName || 'Player', playerId)
   clientRooms.set(ws, roomCode)
 
-  console.log(`${userName} joined room ${roomCode} as team ${teamId}`)
+  console.log(`${userName} joined room ${roomCode}`)
 
   // Send welcome message
   ws.send(JSON.stringify({
     type: 'joined-room',
     payload: {
       roomCode,
+      userId: playerId,
       teams: room.teams,
       auctionState: room.auctionState,
       roomInfo: room.getRoomInfo(),
@@ -381,6 +645,41 @@ function handleJoinRoom(ws, payload) {
   room.broadcastState()
 }
 
+function handleSelectTeam(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const { teamId } = payload
+
+  const success = room.selectTeam(ws, teamId)
+  
+  if (success) {
+    const client = room.clients.get(ws)
+    const team = room.teams.find(t => t.id === teamId)
+    
+    console.log(`${client.userName} selected team: ${team.name}`)
+    
+    ws.send(JSON.stringify({
+      type: 'team-selected',
+      payload: {
+        teamId,
+        teamName: team.name,
+        success: true
+      }
+    }))
+    
+    room.broadcastState()
+  } else {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Team already taken or unavailable' }
+    }))
+  }
+}
+
 function handleStartAuction(ws) {
   const roomCode = clientRooms.get(ws)
   if (!roomCode) return
@@ -388,17 +687,53 @@ function handleStartAuction(ws) {
   const room = rooms.get(roomCode)
   if (!room) return
 
-  // Only allow if at least 2 players (1 human + AI teams is fine)
-  if (room.clients.size < 1) {
+  const client = room.clients.get(ws)
+  
+  // Only host can start the auction
+  if (!client || !client.isHost) {
     ws.send(JSON.stringify({
       type: 'error',
-      payload: { message: 'Need at least 1 player to start' },
+      payload: { message: 'Only the host can start the auction' },
     }))
     return
   }
 
-  room.startAuction()
-  console.log(`Auction started in room ${roomCode}`)
+  // Need minimum teams
+  if (room.clients.size < room.minTeams) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: `Need at least ${room.minTeams} teams to start` },
+    }))
+    return
+  }
+
+  // Check if all players have selected teams
+  let allTeamsSelected = true
+  room.clients.forEach((client) => {
+    if (!client.teamId) {
+      allTeamsSelected = false
+    }
+  })
+
+  if (!allTeamsSelected) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'All players must select a team before starting' },
+    }))
+    return
+  }
+
+  // Start 10-second countdown
+  const started = room.startCountdownTimer()
+  if (!started) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Unable to start auction' },
+    }))
+    return
+  }
+
+  console.log(`Auction countdown started in room ${roomCode}`)
   
   room.broadcastState()
 }
@@ -429,7 +764,7 @@ function handleBid(ws, payload) {
 
 function handleListRooms(ws) {
   const roomList = Array.from(rooms.values())
-    .filter(room => room.auctionState.phase === 'waiting') // Only show joinable rooms
+    .filter(room => room.auctionState.phase === 'lobby') // Only show joinable rooms
     .map(room => room.getRoomInfo())
 
   ws.send(JSON.stringify({

@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Auction Room Model
+model AuctionRoom {
+  id          String   @id @default(cuid())
+  roomCode    String   @unique
+  hostName    String
+  hostId      String
+  status      String   @default("lobby") // lobby, countdown, active, completed
+  teams       Json     // Store all team data as JSON
+  players     Json     // Store all players as JSON
+  playerIndex Int      @default(0)
+  startTime   DateTime?
+  endTime     DateTime?
+  minTeams    Int      @default(2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  leaderboard LeaderboardEntry[]
+  
+  @@index([roomCode])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Leaderboard Entry Model
+model LeaderboardEntry {
+  id           String   @id @default(cuid())
+  roomCode     String
+  userName     String
+  userId       String
+  teamId       String
+  teamName     String
+  finalRating  Float
+  totalSpent   Float
+  budgetLeft   Float
+  playersCount Int
+  rank         Int
+  completedAt  DateTime @default(now())
+  
+  // Relations
+  room         AuctionRoom @relation(fields: [roomCode], references: [roomCode], onDelete: Cascade)
+  
+  @@index([roomCode])
+  @@index([userName])
+  @@index([finalRating])
+  @@index([completedAt])
+}
+
+// User Statistics Model
+model UserStats {
+  id            String   @id @default(cuid())
+  userName      String   @unique
+  userId        String   @unique
+  totalAuctions Int      @default(0)
+  wins          Int      @default(0)
+  topThree      Int      @default(0) // Times finished in top 3
+  totalSpent    Float    @default(0)
+  avgRating     Float    @default(0)
+  highestRating Float    @default(0)
+  bestTeam      Json?    // Store best team details
+  recentRooms   Json?    // Array of recent room codes
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userName])
+  @@index([avgRating])
+  @@index([wins])
+}
+
+// Player Purchase History (for analytics)
+model PlayerPurchase {
+  id          String   @id @default(cuid())
+  roomCode    String
+  playerName  String
+  playerRole  String
+  basePrice   Float
+  soldPrice   Float
+  teamId      String
+  teamName    String
+  userName    String
+  purchasedAt DateTime @default(now())
+  
+  @@index([roomCode])
+  @@index([playerName])
+  @@index([teamName])
+  @@index([purchasedAt])
+}
+
