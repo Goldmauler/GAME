@@ -28,6 +28,20 @@ interface PlayerDetails {
   }
   careerHighlights?: string[]
   analysis?: string
+  recentMatches?: {
+    batting: Array<{
+      opponent: string
+      score: string
+      format: string
+      date: string
+    }>
+    bowling: Array<{
+      opponent: string
+      wickets: string
+      format: string
+      date: string
+    }>
+  }
 }
 
 interface PlayerAnalysisProps {
@@ -82,41 +96,52 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
         if (result.success && result.data && result.data.length > 0) {
           const playerData = result.data[0]
           console.log('✅ Using REAL API data for:', playerData.name)
+          console.log('🎯 Source:', result.source)
           
-          // Now fetch detailed player info with stats
-          const infoResponse = await fetch(`/api/player-info?id=${playerData.id}`).catch(() => null)
+          // Now fetch detailed player stats from Cricbuzz
+          const infoResponse = await fetch(`/api/player-info?id=${playerData.id || playerData.cricbuzzId}`).catch(() => null)
           let detailedInfo = null
           
           if (infoResponse && infoResponse.ok) {
             const infoResult = await infoResponse.json()
             if (infoResult.success && infoResult.data) {
               detailedInfo = infoResult.data
-              console.log('✅ Got detailed player info:', detailedInfo)
+              console.log('✅ Got detailed Cricbuzz stats:', detailedInfo)
             }
           }
           
-          // Map the API response to our PlayerDetails interface - NO DUMMY DATA
+          // Map the API response with REAL Cricbuzz statistics
+          const battingStats = detailedInfo?.stats?.batting
+          const bowlingStats = detailedInfo?.stats?.bowling
+          
           setDetails({
             name: playerData.name || player.name,
-            role: playerData.playerRole || player.role,
-            age: calculateAge(playerData.dateOfBirth),
-            nationality: playerData.country || "Unknown",
-            battingStyle: playerData.battingStyle || "Not specified",
-            bowlingStyle: playerData.bowlingStyle || "Not specified",
-            recentStats: detailedInfo ? {
-              matches: detailedInfo.stats?.matches || 0,
-              runs: detailedInfo.stats?.runs || 0,
-              wickets: detailedInfo.stats?.wickets || 0,
-              average: detailedInfo.stats?.batting?.average || 0,
-              strikeRate: detailedInfo.stats?.batting?.strikeRate || 0,
+            role: playerData.playerRole || detailedInfo?.role || player.role,
+            age: calculateAge(playerData.dateOfBirth || detailedInfo?.dateOfBirth),
+            nationality: playerData.country || detailedInfo?.country || "Unknown",
+            battingStyle: playerData.battingStyle || detailedInfo?.battingStyle || "Not specified",
+            bowlingStyle: playerData.bowlingStyle || detailedInfo?.bowlingStyle || "Not specified",
+            recentStats: (battingStats || bowlingStats) ? {
+              matches: battingStats?.matches || bowlingStats?.matches || 0,
+              runs: battingStats?.runs || 0,
+              wickets: bowlingStats?.wickets || 0,
+              average: battingStats?.average || 0,
+              strikeRate: battingStats?.strikeRate || bowlingStats?.economy || 0,
             } : undefined,
             careerHighlights: [
-              "✓ Real Cricket API Data",
-              playerData.placeOfBirth ? `Born: ${playerData.placeOfBirth}` : null,
-              playerData.dateOfBirth ? `DOB: ${new Date(playerData.dateOfBirth).toLocaleDateString()}` : null,
-              detailedInfo?.teams ? `Teams: ${detailedInfo.teams.join(', ')}` : null,
+              `✓ Cricbuzz Live Data (${result.source})`,
+              detailedInfo?.birthPlace ? `Born: ${detailedInfo.birthPlace}` : null,
+              detailedInfo?.dateOfBirth ? `DOB: ${detailedInfo.dateOfBirth}` : null,
+              battingStats?.fifties ? `Fifties: ${battingStats.fifties}` : null,
+              battingStats?.hundreds ? `Hundreds: ${battingStats.hundreds}` : null,
+              battingStats?.highScore ? `High Score: ${battingStats.highScore}` : null,
+              bowlingStats?.bestBowling ? `Best Bowling: ${bowlingStats.bestBowling}` : null,
+              detailedInfo?.rankings?.bat?.odiBestRank ? `Best ODI Rank: ${detailedInfo.rankings.bat.odiBestRank}` : null,
             ].filter(Boolean) as string[],
-            analysis: `${playerData.name || player.name} is a ${(playerData.playerRole || player.role).toLowerCase()} from ${playerData.country || 'Unknown'}. ${playerData.battingStyle ? `Batting: ${playerData.battingStyle}.` : ''} ${playerData.bowlingStyle && playerData.bowlingStyle !== 'null' ? `Bowling: ${playerData.bowlingStyle}.` : ''} This is real data from Cricket API.`
+            analysis: detailedInfo 
+              ? `${playerData.name} is a ${(detailedInfo.role || playerData.playerRole || player.role).toLowerCase()} from ${detailedInfo.country || playerData.country}. ${detailedInfo.battingStyle ? `Batting: ${detailedInfo.battingStyle}.` : ''} ${detailedInfo.bowlingStyle && detailedInfo.bowlingStyle !== 'null' ? `Bowling: ${detailedInfo.bowlingStyle}.` : ''} ${battingStats ? `Recent Stats - ${battingStats.matches} matches, ${battingStats.runs} runs at ${battingStats.average} avg, with ${battingStats.fifties} fifties and ${battingStats.hundreds} hundreds.` : ''} This is real data from Cricbuzz API.`
+              : `${playerData.name} is a ${(playerData.playerRole || player.role).toLowerCase()} from ${playerData.country}. Real player data from Cricbuzz.`,
+            recentMatches: detailedInfo?.recentMatches || undefined
           })
           setLoading(false)
           return
@@ -356,9 +381,9 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
               {details.recentStats && (
                 <div className="bg-slate-700/30 rounded-lg p-6">
                   <h3 className="text-xl font-bold text-orange-400 mb-4">
-                    Recent Performance
+                    Recent Performance Statistics
                     {details.recentStats.matches === 0 && (
-                      <span className="text-sm text-gray-400 ml-2">(API Stats Not Available)</span>
+                      <span className="text-sm text-gray-400 ml-2">(Limited data available)</span>
                     )}
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -382,17 +407,82 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
                     </div>
                     <div className="text-center">
                       <p className="text-3xl font-black text-blue-400 mb-1">
-                        {details.recentStats.average || 'N/A'}
+                        {details.recentStats.average ? details.recentStats.average.toFixed(2) : 'N/A'}
                       </p>
                       <p className="text-gray-400 text-sm">Average</p>
                     </div>
                     <div className="text-center">
                       <p className="text-3xl font-black text-green-400 mb-1">
-                        {details.recentStats.strikeRate || 'N/A'}
+                        {details.recentStats.strikeRate ? details.recentStats.strikeRate.toFixed(2) : 'N/A'}
                       </p>
                       <p className="text-gray-400 text-sm">Strike Rate</p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Recent Matches */}
+              {details.recentMatches && (details.recentMatches.batting.length > 0 || details.recentMatches.bowling.length > 0) && (
+                <div className="bg-slate-700/30 rounded-lg p-6">
+                  <h3 className="text-xl font-bold text-orange-400 mb-4">Recent Matches</h3>
+                  
+                  {/* Recent Batting */}
+                  {details.recentMatches.batting.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold text-white mb-3">🏏 Batting Performances</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-800/50">
+                            <tr>
+                              <th className="text-left p-3 text-gray-400">Opponent</th>
+                              <th className="text-left p-3 text-gray-400">Score</th>
+                              <th className="text-left p-3 text-gray-400">Format</th>
+                              <th className="text-left p-3 text-gray-400">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {details.recentMatches.batting.slice(0, 5).map((match, idx) => (
+                              <tr key={idx} className="border-t border-slate-700/50">
+                                <td className="p-3 text-white">{match.opponent}</td>
+                                <td className="p-3 text-orange-400 font-bold">{match.score}</td>
+                                <td className="p-3 text-gray-300">{match.format}</td>
+                                <td className="p-3 text-gray-400">{match.date}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Recent Bowling */}
+                  {details.recentMatches.bowling.length > 0 && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-white mb-3">⚡ Bowling Performances</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-800/50">
+                            <tr>
+                              <th className="text-left p-3 text-gray-400">Opponent</th>
+                              <th className="text-left p-3 text-gray-400">Wickets</th>
+                              <th className="text-left p-3 text-gray-400">Format</th>
+                              <th className="text-left p-3 text-gray-400">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {details.recentMatches.bowling.slice(0, 5).map((match, idx) => (
+                              <tr key={idx} className="border-t border-slate-700/50">
+                                <td className="p-3 text-white">{match.opponent}</td>
+                                <td className="p-3 text-red-400 font-bold">{match.wickets}</td>
+                                <td className="p-3 text-gray-300">{match.format}</td>
+                                <td className="p-3 text-gray-400">{match.date}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
