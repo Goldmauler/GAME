@@ -3,6 +3,7 @@
 ## 🚀 What's New
 
 ### Full Room-Based Multiplayer System
+
 - **Create Room**: Host creates a 6-character room code
 - **Join Room**: Players join using the room code
 - **Team Selection Lobby**: Choose from 10 IPL franchises
@@ -11,6 +12,7 @@
 - **Results & Leaderboard**: Automatic database saving
 
 ### Database Integration
+
 - **PostgreSQL** via Supabase
 - **4 Tables**:
   1. `AuctionRoom` - Room details and status
@@ -23,16 +25,20 @@
 ## 📂 New Pages & Routes
 
 ### 1. Home/Lobby Page
+
 **Route**: `/room-lobby`
+
 - Create new room with your name
 - Join existing room with 6-char code
 - Beautiful UI with cricket theme
 - Links to leaderboard
 
 ### 2. Room Page
+
 **Route**: `/room/[roomCode]`
+
 - **Join Screen**: Enter your name to join
-- **Lobby**: 
+- **Lobby**:
   - View room status (players, host, min teams)
   - Select your team from available franchises
   - Host can start auction when ready
@@ -46,7 +52,9 @@
   - Links to leaderboard and new game
 
 ### 3. Leaderboard Page
+
 **Route**: `/leaderboard`
+
 - Global top 50 players by rating
 - Gold/Silver/Bronze medals for top 3
 - Shows rating, spending, budget, date
@@ -71,28 +79,33 @@ npm run dev
 1. **Go to**: `http://localhost:3000/room-lobby`
 
 2. **Create Room**:
+
    - Enter your name
    - Click "Create Room"
    - You'll be redirected to your room
    - Share the 6-character code with friends
 
 3. **Join Room**:
+
    - Get room code from host
    - Enter code and your name
    - Click "Join Room"
 
 4. **Select Team**:
+
    - Choose from available IPL franchises
    - Taken teams are marked in red
    - Your selected team turns green
 
 5. **Start Auction** (Host Only):
+
    - Wait for minimum 2 teams to join
    - Select your team first
    - Click "Start Auction"
    - 10-second countdown begins
 
 6. **Bid on Players**:
+
    - Each player shown for 30 seconds
    - Click bid buttons (+₹1Cr, +₹5Cr, +₹10Cr, +₹20Cr)
    - Watch your budget and squad size
@@ -109,6 +122,7 @@ npm run dev
 ## 🗄️ Database Schema
 
 ### AuctionRoom Table
+
 ```sql
 id              String    @id @default(cuid())
 roomCode        String    @unique (6-char code)
@@ -126,6 +140,7 @@ updatedAt       DateTime
 ```
 
 ### LeaderboardEntry Table
+
 ```sql
 id              String    @id
 roomCode        String    (which auction)
@@ -142,6 +157,7 @@ completedAt     DateTime
 ```
 
 ### UserStats Table
+
 ```sql
 id              String    @id
 userName        String    @unique
@@ -159,6 +175,7 @@ updatedAt       DateTime
 ```
 
 ### PlayerPurchase Table
+
 ```sql
 id              String    @id
 roomCode        String    (which auction)
@@ -177,14 +194,17 @@ purchasedAt     DateTime
 ## 🔌 WebSocket Server
 
 ### Location
+
 `server/auction-room-server.js`
 
 ### Port
+
 `8080`
 
 ### Messages
 
 **Client → Server**:
+
 ```json
 // Create new room
 {
@@ -229,6 +249,7 @@ purchasedAt     DateTime
 ```
 
 **Server → Client**:
+
 ```json
 // Room created
 {
@@ -299,9 +320,11 @@ purchasedAt     DateTime
 ## 📊 API Routes
 
 ### 1. Save Auction Results
+
 **POST** `/api/auction/save-results`
 
 Body:
+
 ```json
 {
   "roomCode": "ABC123",
@@ -326,9 +349,11 @@ Body:
 ```
 
 ### 2. Save Player Purchase
+
 **POST** `/api/auction/save-player-purchase`
 
 Body:
+
 ```json
 {
   "roomCode": "ABC123",
@@ -343,24 +368,33 @@ Body:
 ```
 
 **GET** `/api/auction/save-player-purchase?roomCode=ABC123`
+
 - Returns all player purchases for a room
 
 ### 3. Global Leaderboard
+
 **GET** `/api/leaderboard`
+
 - Returns top 50 players by rating
 
 **GET** `/api/leaderboard?roomCode=ABC123`
+
 - Returns leaderboard for specific room
 
 ### 4. Room Management
+
 **POST** `/api/rooms/create`
+
 - Creates room in database
 
 **GET** `/api/rooms/create?status=lobby`
+
 - Lists available rooms
 
 ### 5. User Statistics
+
 **GET** `/api/user-stats/[userName]`
+
 - Returns user profile with stats
 
 ---
@@ -368,12 +402,14 @@ Body:
 ## 🎨 Features
 
 ### Team Selection
+
 - ✅ 10 IPL franchises with authentic names
 - ✅ Visual indicators (Taken = Red, Selected = Green)
 - ✅ Click to select, automatic sync
 - ✅ Host-only start control
 
 ### Live Auction
+
 - ✅ 130+ real IPL players from Cricbuzz API
 - ✅ Real-time bidding with WebSocket
 - ✅ AI teams bid automatically
@@ -382,6 +418,7 @@ Body:
 - ✅ Squad size limits (25 players max)
 
 ### Database Persistence
+
 - ✅ Room saved on creation
 - ✅ Player purchase saved immediately after bid
 - ✅ Auction results saved on completion
@@ -389,6 +426,7 @@ Body:
 - ✅ Leaderboard rankings calculated
 
 ### Real-Time Updates
+
 - ✅ Player joins → All players notified
 - ✅ Team selected → All players see taken teams
 - ✅ Countdown → All players see timer
@@ -400,11 +438,13 @@ Body:
 ## 🔧 Environment Setup
 
 ### .env
+
 ```bash
 DATABASE_URL="postgresql://postgres:Vimalx007100%25@db.inzxttwcusjvufplkkud.supabase.co:5432/postgres"
 ```
 
 ### .env.local
+
 ```bash
 DATABASE_URL="postgresql://postgres:Vimalx007100%25@db.inzxttwcusjvufplkkud.supabase.co:5432/postgres"
 NEXT_PUBLIC_RAPIDAPI_KEY=f0484cffebmsh693ec841c20d016p16267bjsn43c1536f5c6a
@@ -416,11 +456,13 @@ NEXT_PUBLIC_CRICKET_API_URL=https://cricbuzz-cricket.p.rapidapi.com
 ## 📦 Dependencies
 
 ### Installed
+
 - `@prisma/client` - Database ORM
 - `prisma` - Database toolkit
 - `node-fetch@2` - HTTP requests (server-side)
 
 ### Key Packages
+
 - `next` 16.0.0 - React framework
 - `react` 19.2.0 - UI library
 - `framer-motion` - Animations
@@ -432,6 +474,7 @@ NEXT_PUBLIC_CRICKET_API_URL=https://cricbuzz-cricket.p.rapidapi.com
 ## 🎯 Testing Workflow
 
 ### 1. Create Room
+
 ```
 1. Open: http://localhost:3000/room-lobby
 2. Enter name: "TestPlayer1"
@@ -440,6 +483,7 @@ NEXT_PUBLIC_CRICKET_API_URL=https://cricbuzz-cricket.p.rapidapi.com
 ```
 
 ### 2. Join Room (2nd Player)
+
 ```
 1. Open new tab: http://localhost:3000/room-lobby
 2. Enter room code: "ABC123"
@@ -448,18 +492,21 @@ NEXT_PUBLIC_CRICKET_API_URL=https://cricbuzz-cricket.p.rapidapi.com
 ```
 
 ### 3. Select Teams
+
 ```
 Player 1: Select "Mumbai Indians"
 Player 2: Select "Chennai Super Kings"
 ```
 
 ### 4. Start Auction
+
 ```
 Player 1 (Host): Click "Start Auction"
 Both players see: 10-second countdown
 ```
 
 ### 5. Bid on Players
+
 ```
 Current player shows: "Virat Kohli"
 Base price: ₹20Cr
@@ -468,6 +515,7 @@ Timer: 30 seconds
 ```
 
 ### 6. View Results
+
 ```
 After all players sold:
 - Final rankings displayed
@@ -476,10 +524,13 @@ After all players sold:
 ```
 
 ### 7. Check Database
+
 ```powershell
 npx prisma studio
 ```
+
 Open: http://localhost:5555
+
 - View AuctionRoom table (1 room)
 - View PlayerPurchase table (all purchases)
 - View LeaderboardEntry table (final rankings)
@@ -490,6 +541,7 @@ Open: http://localhost:5555
 ## 🐛 Troubleshooting
 
 ### WebSocket Not Connecting
+
 ```powershell
 # Check if server running
 Get-Process | Where-Object { $_.ProcessName -eq "node" }
@@ -499,6 +551,7 @@ npm run start-room-server
 ```
 
 ### Database Errors
+
 ```powershell
 # Reset database (⚠️ deletes all data)
 npx prisma migrate reset
@@ -511,6 +564,7 @@ npx prisma generate
 ```
 
 ### Port Already in Use
+
 ```powershell
 # Kill all Node processes
 Get-Process | Where-Object { $_.ProcessName -eq "node" } | Stop-Process -Force
@@ -543,6 +597,7 @@ npm run dev
 ## 🎉 You're All Set!
 
 The IPL Auction Game is fully functional with:
+
 - ✅ Complete multiplayer room system
 - ✅ Real-time WebSocket communication
 - ✅ PostgreSQL database persistence
@@ -551,6 +606,7 @@ The IPL Auction Game is fully functional with:
 - ✅ Leaderboard and statistics
 
 ### Next Steps
+
 1. Open `http://localhost:3000/room-lobby`
 2. Create a room
 3. Share the code with friends

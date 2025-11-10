@@ -1,11 +1,13 @@
 # Database Integration Complete! 🎉
 
 ## Overview
+
 The IPL Auction Game now has full database integration using PostgreSQL (Supabase) and Prisma ORM. All auction rooms and results are automatically saved to the database.
 
 ## What's Been Done
 
 ### 1. Database Setup ✅
+
 - **Database**: PostgreSQL via Supabase
 - **ORM**: Prisma v6.19.0
 - **Connection**: Secure connection with URL-encoded password
@@ -17,9 +19,11 @@ The IPL Auction Game now has full database integration using PostgreSQL (Supabas
   - `PlayerPurchase` - Records all player purchases for analytics
 
 ### 2. WebSocket Server Integration ✅
+
 **File**: `server/auction-room-server.js`
 
 **New Features**:
+
 - Added `node-fetch` for API calls
 - Added `saveRoomToDatabase()` helper function
 - Integrated with `/api/rooms/create` when room is created
@@ -28,10 +32,10 @@ The IPL Auction Game now has full database integration using PostgreSQL (Supabas
 - Error handling for database operations
 
 **Database Operations**:
+
 1. **Room Creation**: When a room is created, it's saved to the database with:
    - Room code, host details, team list, player list
    - Status: 'lobby'
-   
 2. **Auction Completion**: When auction finishes, saves:
    - Team ratings and rankings
    - User statistics (wins, top-3 finishes, average rating)
@@ -39,26 +43,32 @@ The IPL Auction Game now has full database integration using PostgreSQL (Supabas
    - Updates best team if rating is highest
 
 ### 3. API Routes ✅
+
 All 6 API routes are fully functional:
 
 1. **POST `/api/auction/save-results`**
+
    - Saves completed auction data
    - Calculates team ratings
    - Creates leaderboard entries with rankings
    - Updates user statistics
 
 2. **GET `/api/leaderboard`**
+
    - Returns global top 50 leaderboard
    - Query param `?roomCode=XXX` for room-specific results
 
 3. **POST `/api/leaderboard`**
+
    - Get top users by wins, avgRating, etc.
 
 4. **POST `/api/rooms/create`**
+
    - Create new room in database
    - Validates duplicate room codes
 
 5. **GET `/api/rooms/create`**
+
    - List available rooms
    - Filter by status (lobby/active/completed)
 
@@ -68,7 +78,9 @@ All 6 API routes are fully functional:
    - Win rate and top-3 rate
 
 ### 4. Frontend Pages ✅
+
 **Leaderboard Page**: `/app/leaderboard/page.tsx`
+
 - Beautiful UI with rank icons (🏆 🥈 🥉)
 - Shows top performers across all auctions
 - Displays rating, spending, budget, and date
@@ -76,6 +88,7 @@ All 6 API routes are fully functional:
 - Link added to header component
 
 ### 5. Header Component Updated ✅
+
 - Added "Leaderboard" button with Trophy icon
 - Links to `/leaderboard` page
 - Styled with yellow theme
@@ -83,21 +96,27 @@ All 6 API routes are fully functional:
 ## Testing
 
 ### Server Status
+
 Both servers are running successfully:
+
 - ✅ WebSocket Server: `ws://localhost:8080`
 - ✅ Next.js Dev Server: `http://localhost:3000`
 
 ### Database Tools
+
 - **Prisma Studio**: `npx prisma studio` → http://localhost:5555
 - View and manage database tables directly
 
 ### Test the Flow
-1. **Create a Room**: 
+
+1. **Create a Room**:
+
    - Go to auction page
    - Create room → Saved to database
    - Check Prisma Studio to see room entry
 
 2. **Complete Auction**:
+
    - Start and complete an auction
    - Results automatically saved
    - Check leaderboard page to see entry
@@ -109,6 +128,7 @@ Both servers are running successfully:
 ## Database Schema
 
 ### AuctionRoom
+
 ```prisma
 model AuctionRoom {
   id           String   @id @default(cuid())
@@ -124,12 +144,13 @@ model AuctionRoom {
   minTeams     Int      @default(2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   leaderboard  LeaderboardEntry[]
 }
 ```
 
 ### LeaderboardEntry
+
 ```prisma
 model LeaderboardEntry {
   id           String   @id @default(cuid())
@@ -144,12 +165,13 @@ model LeaderboardEntry {
   playersCount Int
   rank         Int
   createdAt    DateTime @default(now())
-  
+
   room         AuctionRoom @relation(fields: [roomCode], references: [roomCode], onDelete: Cascade)
 }
 ```
 
 ### UserStats
+
 ```prisma
 model UserStats {
   id            String   @id @default(cuid())
@@ -169,6 +191,7 @@ model UserStats {
 ```
 
 ### PlayerPurchase
+
 ```prisma
 model PlayerPurchase {
   id           String   @id @default(cuid())
@@ -187,11 +210,13 @@ model PlayerPurchase {
 ## Environment Variables
 
 ### .env
+
 ```bash
 DATABASE_URL="postgresql://postgres:Vimalx007100%25@db.inzxttwcusjvufplkkud.supabase.co:5432/postgres"
 ```
 
 ### .env.local
+
 ```bash
 DATABASE_URL="postgresql://postgres:Vimalx007100%25@db.inzxttwcusjvufplkkud.supabase.co:5432/postgres"
 NEXT_PUBLIC_RAPIDAPI_KEY=f0484cffebmsh693ec841c20d016p16267bjsn43c1536f5c6a
@@ -201,6 +226,7 @@ NEXT_PUBLIC_CRICKET_API_URL=https://cricbuzz-cricket.p.rapidapi.com
 ## Commands
 
 ### Start Servers
+
 ```bash
 # Terminal 1 - WebSocket Server
 npm run start-room-server
@@ -210,6 +236,7 @@ npm run dev
 ```
 
 ### Database Management
+
 ```bash
 # View database in browser
 npx prisma studio
@@ -227,18 +254,21 @@ npx prisma migrate reset
 ## Next Steps
 
 ### 1. Frontend Components to Build
+
 - **Team Selection Modal**: Show available teams in lobby
 - **Countdown Timer**: Display 10-second countdown
 - **Lobby Waiting Room**: Show joined players
 - **User Stats Dashboard**: Personal statistics page
 
 ### 2. Additional Features
+
 - **Room History**: View past auctions
 - **Player Analytics**: Most expensive players, trends
 - **User Profiles**: Detailed stats, achievements
 - **Filters**: Filter leaderboard by date, team, etc.
 
 ### 3. Enhancements
+
 - **Real-time Updates**: WebSocket updates for leaderboard
 - **Notifications**: Toast messages for saves
 - **Error Handling**: Better error messages
