@@ -15,14 +15,30 @@ interface Team {
 
 interface TeamSelectionProps {
   teams: Team[]
+  takenTeams?: string[]
   onTeamSelect: (teamId: string) => void
 }
 
-export default function TeamSelection({ teams, onTeamSelect }: TeamSelectionProps) {
+export default function TeamSelection({ teams, takenTeams = [], onTeamSelect }: TeamSelectionProps) {
   const [selectedTeam, setSelectedTeam] = React.useState<string>("")
+  const [error, setError] = React.useState<string>("")
+
+  const handleTeamClick = (teamId: string) => {
+    if (takenTeams.includes(teamId)) {
+      setError(`This team is already taken! Please select another team.`)
+      setTimeout(() => setError(""), 3000)
+      return
+    }
+    setSelectedTeam(teamId)
+    setError("")
+  }
 
   const handleConfirm = () => {
     if (selectedTeam) {
+      if (takenTeams.includes(selectedTeam)) {
+        setError(`This team is already taken! Please select another team.`)
+        return
+      }
       onTeamSelect(selectedTeam)
     }
   }
@@ -41,56 +57,78 @@ export default function TeamSelection({ teams, onTeamSelect }: TeamSelectionProp
           </h1>
           <p className="text-2xl text-gray-300 mb-2">Select Your Team</p>
           <p className="text-gray-400">Choose wisely - you cannot change teams once the auction begins!</p>
+          
+          {/* Error Message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-4 bg-red-500/20 border-2 border-red-500 rounded-lg px-6 py-3 inline-block"
+            >
+              <p className="text-red-400 font-bold">⚠️ {error}</p>
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Teams Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {teams.map((team, idx) => (
-            <motion.div
-              key={team.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: idx * 0.1 }}
-              onClick={() => setSelectedTeam(team.id)}
-              className={`cursor-pointer rounded-xl p-6 border-4 transition-all transform hover:scale-105 ${
-                selectedTeam === team.id
-                  ? "border-yellow-400 shadow-2xl shadow-yellow-400/50"
-                  : "border-slate-700 hover:border-slate-500"
-              } bg-gradient-to-br ${team.color}`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-2xl font-black text-white">{team.name}</h3>
-                {selectedTeam === team.id && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="bg-yellow-400 text-slate-900 rounded-full w-8 h-8 flex items-center justify-center font-bold"
-                  >
-                    ✓
-                  </motion.div>
-                )}
-              </div>
-              
-              <div className="space-y-2 text-white/90">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Starting Budget:</span>
-                  <span className="font-bold">₹{team.budget}Cr</span>
+          {teams.map((team, idx) => {
+            const isTaken = takenTeams.includes(team.id)
+            
+            return (
+              <motion.div
+                key={team.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: idx * 0.1 }}
+                onClick={() => handleTeamClick(team.id)}
+                className={`rounded-xl p-6 border-4 transition-all transform ${
+                  isTaken
+                    ? "opacity-50 cursor-not-allowed border-red-500 grayscale"
+                    : selectedTeam === team.id
+                    ? "cursor-pointer border-yellow-400 shadow-2xl shadow-yellow-400/50 hover:scale-105"
+                    : "cursor-pointer border-slate-700 hover:border-slate-500 hover:scale-105"
+                } bg-gradient-to-br ${team.color}`}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-2xl font-black text-white">{team.name}</h3>
+                  {isTaken && (
+                    <div className="bg-red-500 text-white rounded-full px-3 py-1 text-xs font-bold">
+                      TAKEN
+                    </div>
+                  )}
+                  {selectedTeam === team.id && !isTaken && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="bg-yellow-400 text-slate-900 rounded-full w-8 h-8 flex items-center justify-center font-bold"
+                    >
+                      ✓
+                    </motion.div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Squad Slots:</span>
-                  <span className="font-bold">{team.maxPlayers} Players</span>
+                
+                <div className="space-y-2 text-white/90">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Starting Budget:</span>
+                    <span className="font-bold">₹{team.budget}Cr</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Squad Slots:</span>
+                    <span className="font-bold">{team.maxPlayers} Players</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-4 h-2 bg-white/20 rounded-full overflow-hidden">
-                <motion.div
-                  animate={{ width: selectedTeam === team.id ? "100%" : "0%" }}
-                  transition={{ duration: 0.3 }}
-                  className="h-full bg-yellow-400"
-                />
-              </div>
-            </motion.div>
-          ))}
+                <div className="mt-4 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <motion.div
+                    animate={{ width: selectedTeam === team.id && !isTaken ? "100%" : "0%" }}
+                    transition={{ duration: 0.3 }}
+                    className="h-full bg-yellow-400"
+                  />
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
 
         {/* Confirm Button */}

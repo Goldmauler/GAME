@@ -3,29 +3,10 @@
 import React, { useState, useEffect, useRef } from "react"
 import RoomLobby from "./room-lobby"
 import TeamSelection from "./team-selection"
+import WaitingLobby from "./waiting-lobby"
+import MultiplayerAuctionArena from "./multiplayer-auction-arena"
 
-const AuctionArena: React.FC<{
-  roomCode: string
-  localTeamId: string
-  userName: string
-  wsRef: React.MutableRefObject<WebSocket | null>
-  wsConnected: boolean
-  onComplete: () => void
-}> = ({ roomCode, localTeamId, userName }) => {
-  // Minimal placeholder component to avoid missing-module errors; replace with full implementation as needed.
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center text-white">
-        <p className="text-xl font-semibold">Auction Arena (placeholder)</p>
-        <p className="text-sm text-gray-300">Room: {roomCode || "N/A"}</p>
-        <p className="text-sm text-gray-300">Team: {localTeamId || "N/A"}</p>
-        <p className="text-sm text-gray-300">User: {userName || "N/A"}</p>
-      </div>
-    </div>
-  )
-}
-
-type AppPhase = "lobby" | "team-selection" | "auction"
+type AppPhase = "lobby" | "team-selection" | "waiting-lobby" | "auction"
 
 export default function AuctionRoomApp() {
   const [phase, setPhase] = useState<AppPhase>("lobby")
@@ -33,6 +14,16 @@ export default function AuctionRoomApp() {
   const [userName, setUserName] = useState("")
   const [localTeamId, setLocalTeamId] = useState("")
   const [wsConnected, setWsConnected] = useState(false)
+  const [isHost, setIsHost] = useState(false)
+  const [isReady, setIsReady] = useState(false)
+  const [takenTeams, setTakenTeams] = useState<string[]>([])
+  const [lobbyPlayers, setLobbyPlayers] = useState<Array<{
+    teamId: string
+    teamName: string
+    userName: string
+    ready: boolean
+    isHost: boolean
+  }>>([])
   const wsRef = useRef<WebSocket | null>(null)
 
   // Connect to WebSocket on mount
@@ -65,13 +56,50 @@ export default function AuctionRoomApp() {
           
           if (msg.type === "room-created") {
             // Room created successfully, room code is in payload
-            const { roomCode: code } = msg.payload
+            const { roomCode: code, isHost: host, takenTeams: taken } = msg.payload
             setRoomCode(code)
+            setIsHost(host ?? true)
+            setTakenTeams(taken || [])
             setPhase("team-selection")
           }
           
           if (msg.type === "joined-room") {
-            // Successfully joined room, now ready for auction
+            // Successfully joined room
+            const { isHost: host, takenTeams: taken } = msg.payload
+            setIsHost(host ?? false)
+            setTakenTeams(taken || [])
+            setPhase("team-selection")
+          }
+
+          if (msg.type === "room-update") {
+            // Update room info including taken teams
+            const { takenTeams: taken } = msg.payload
+            if (taken) {
+              setTakenTeams(taken)
+            }
+          }
+
+          if (msg.type === "lobby-update") {
+            // Update lobby players list
+            const { players } = msg.payload
+            setLobbyPlayers(players)
+          }
+
+          if (msg.type === "team-selected") {
+            // Confirmation that team was selected successfully
+            const { success } = msg.payload
+            if (success) {
+              setPhase("waiting-lobby")
+            }
+          }
+
+          if (msg.type === "team-taken-error") {
+            // Team is already taken
+            alert(`This team is already taken! Please select another team.`)
+          }
+
+          if (msg.type === "start-auction") {
+            // Auction is starting
             setPhase("auction")
           }
 
@@ -100,15 +128,17 @@ export default function AuctionRoomApp() {
   const handleRoomJoined = (code: string, teamId: string, name: string) => {
     setRoomCode(code)
     setUserName(name)
+    
+    // Always send join-room message to server
+    if (wsRef.current && wsConnected) {
+      wsRef.current.send(JSON.stringify({
+        type: "join-room",
+        payload: { roomCode: code, userName: name },
+      }))
+    }
+    
     if (teamId) {
       setLocalTeamId(teamId)
-      // Send join message
-      if (wsRef.current && wsConnected) {
-        wsRef.current.send(JSON.stringify({
-          type: "join-room",
-          payload: { roomCode: code, teamId, userName: name },
-        }))
-      }
     } else {
       // Need to select team first
       setPhase("team-selection")
@@ -118,13 +148,32 @@ export default function AuctionRoomApp() {
   const handleTeamSelected = (teamId: string) => {
     setLocalTeamId(teamId)
     
-    // Send join message to server with selected team
+    // Send team selection to server
     if (wsRef.current && wsConnected) {
       wsRef.current.send(JSON.stringify({
-        type: "join-room",
+        type: "select-team",
         payload: { roomCode, teamId, userName },
       }))
     }
+
+    // Don't move to waiting lobby immediately - wait for server confirmation
+  }
+
+  const handleReady = () => {
+    setIsReady(!isReady)
+    
+    // Send ready status to server
+    if (wsRef.current && wsConnected) {
+      wsRef.current.send(JSON.stringify({
+        type: "player-ready",
+        payload: { roomCode, teamId: localTeamId, ready: !isReady },
+      }))
+    }
+  }
+
+  const handleStartAuction = () => {
+    // This will be handled by the WaitingLobby component
+    // which sends start-auction message to server
   }
 
   const handleAuctionComplete = () => {
@@ -166,14 +215,30 @@ export default function AuctionRoomApp() {
                 { id: "9", name: "Bangalore Royals", color: "from-red-600 to-rose-800", budget: 100, players: [], maxPlayers: 25, recentBids: 0 },
                 { id: "10", name: "Hyderabad Chargers", color: "from-emerald-600 to-emerald-800", budget: 100, players: [], maxPlayers: 25, recentBids: 0 },
               ]}
+              takenTeams={takenTeams}
               onTeamSelect={handleTeamSelected}
             />
           </div>
         </div>
       )}
       
+      {phase === "waiting-lobby" && (
+        <WaitingLobby
+          roomCode={roomCode}
+          localTeamId={localTeamId}
+          userName={userName}
+          players={lobbyPlayers}
+          isHost={isHost}
+          isReady={isReady}
+          wsRef={wsRef}
+          wsConnected={wsConnected}
+          onReady={handleReady}
+          onStartAuction={handleStartAuction}
+        />
+      )}
+      
       {phase === "auction" && (
-        <AuctionArena
+        <MultiplayerAuctionArena
           roomCode={roomCode}
           localTeamId={localTeamId}
           userName={userName}

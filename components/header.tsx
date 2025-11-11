@@ -2,13 +2,14 @@
 
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { Trophy } from "lucide-react"
+import { Trophy, Home, RotateCcw } from "lucide-react"
 
 interface HeaderProps {
   gamePhase: string
+  onReset?: () => void
 }
 
-export default function Header({ gamePhase }: HeaderProps) {
+export default function Header({ gamePhase, onReset }: HeaderProps) {
   const phases = {
     lobby: "Welcome",
     auction: "Live Auction",
@@ -32,6 +33,16 @@ export default function Header({ gamePhase }: HeaderProps) {
         </div>
 
         <div className="flex gap-4 items-center">
+          {onReset && (
+            <button
+              onClick={onReset}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all"
+            >
+              <Home className="h-4 w-4" />
+              <span className="text-sm font-semibold">Back to Menu</span>
+            </button>
+          )}
+          
           <Link 
             href="/leaderboard"
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/20 transition-all"

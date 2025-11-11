@@ -52,7 +52,7 @@ const TEAMS: Team[] = [
     id: "1",
     name: "Mumbai Indians",
     color: "from-blue-600 to-blue-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -61,7 +61,7 @@ const TEAMS: Team[] = [
     id: "2",
     name: "Chennai Super Kings",
     color: "from-yellow-600 to-yellow-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -70,7 +70,7 @@ const TEAMS: Team[] = [
     id: "3",
     name: "Delhi Capitals",
     color: "from-purple-600 to-purple-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -79,7 +79,7 @@ const TEAMS: Team[] = [
     id: "4",
     name: "Rajasthan Royals",
     color: "from-pink-600 to-pink-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -88,7 +88,7 @@ const TEAMS: Team[] = [
     id: "5",
     name: "Kolkata Knight Riders",
     color: "from-slate-600 to-slate-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -97,7 +97,7 @@ const TEAMS: Team[] = [
     id: "6",
     name: "Punjab Kings",
     color: "from-red-600 to-red-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -106,7 +106,7 @@ const TEAMS: Team[] = [
     id: "7",
     name: "Sunrisers Hyderabad",
     color: "from-orange-600 to-orange-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -115,7 +115,7 @@ const TEAMS: Team[] = [
     id: "8",
     name: "Lucknow Super Giants",
     color: "from-cyan-600 to-cyan-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -124,7 +124,7 @@ const TEAMS: Team[] = [
     id: "9",
     name: "Bangalore Royals",
     color: "from-red-600 to-rose-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -133,7 +133,7 @@ const TEAMS: Team[] = [
     id: "10",
     name: "Hyderabad Chargers",
     color: "from-emerald-600 to-emerald-800",
-    budget: 1600,
+    budget: 100,
     players: [],
     maxPlayers: 25,
     recentBids: 0,
@@ -180,20 +180,67 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
   const wsRef = useRef<WebSocket | null>(null)
   const [wsConnected, setWsConnected] = useState(false)
   const [localTeamId, setLocalTeamId] = useState<string>("")
-  const [teamLocked, setTeamLocked] = useState(false)
   const [results, setResults] = useState<any | null>(null)
+  const [showTeamsTable, setShowTeamsTable] = useState(false)
+  const [selectedTeamForAnalysis, setSelectedTeamForAnalysis] = useState<string | null>(null)
+  
+  // Set default team for analysis when teams table is opened
+  useEffect(() => {
+    if (showTeamsTable && !selectedTeamForAnalysis) {
+      setSelectedTeamForAnalysis(localTeamId || teams[0].id)
+    }
+  }, [showTeamsTable, selectedTeamForAnalysis, localTeamId, teams])
   
   // Player analysis modal
   const [selectedPlayerForAnalysis, setSelectedPlayerForAnalysis] = useState<Player | null>(null)
 
+  // Load saved auction state from sessionStorage on mount
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('auctionState')
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState)
+        if (state.gamePhase) setGamePhase(state.gamePhase)
+        if (state.teams) setTeams(state.teams)
+        if (state.playerIndex !== undefined) setPlayerIndex(state.playerIndex)
+        if (state.currentBid) setCurrentBid(state.currentBid)
+        if (state.localTeamId) {
+          setLocalTeamId(state.localTeamId)
+        }
+        if (state.auctionPhase) setAuctionPhase(state.auctionPhase)
+        if (state.results) setResults(state.results)
+      } catch (e) {
+        console.error('Failed to load saved auction state:', e)
+      }
+    }
+  }, [])
+
+  // Save auction state to sessionStorage whenever key values change
+  useEffect(() => {
+    const stateToSave = {
+      gamePhase,
+      teams,
+      playerIndex,
+      currentBid,
+      localTeamId,
+      auctionPhase,
+      results
+    }
+    sessionStorage.setItem('auctionState', JSON.stringify(stateToSave))
+  }, [gamePhase, teams, playerIndex, currentBid, localTeamId, auctionPhase, results])
+
   // Handle team selection
   const handleTeamSelect = (teamId: string) => {
     setLocalTeamId(teamId)
-    setTeamLocked(true)
     setGamePhase("active")
     
     // Connect to WebSocket after team selection
     connectToServer(teamId)
+  }
+  
+  // Allow team switching during auction
+  const handleTeamSwitch = (teamId: string) => {
+    setLocalTeamId(teamId)
   }
 
   const connectToServer = (teamId: string) => {
@@ -643,7 +690,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
         )}
 
         {/* Progress */}
-        <motion.div className="bg-slate-800 rounded-lg p-4 border border-orange-500/20">
+        <motion.div className="bg-slate-800 rounded-lg p-4 border border-orange-500/20 mb-8">
           <div className="flex items-center justify-between mb-2">
             <span className="text-gray-400">Auction Progress</span>
             <span className="text-orange-500 font-bold">{playerIndex + 1}/100</span>
@@ -656,6 +703,355 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
               className="h-full bg-gradient-to-r from-orange-500 to-red-500"
             ></motion.div>
           </div>
+        </motion.div>
+
+        {/* Teams Overview Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-orange-500/30 shadow-2xl"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-black text-white flex items-center gap-3">
+              <span className="text-3xl">🏆</span>
+              Teams Overview
+            </h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowTeamsTable(!showTeamsTable)}
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold transition-all"
+              >
+                {showTeamsTable ? 'Hide Details' : 'Show Details'}
+              </button>
+            </div>
+          </div>
+
+          {/* Compact Teams Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-700">
+                  <th className="text-left py-3 px-4 text-gray-400 font-semibold text-sm">Team</th>
+                  <th className="text-center py-3 px-4 text-gray-400 font-semibold text-sm">Players</th>
+                  <th className="text-right py-3 px-4 text-gray-400 font-semibold text-sm">Budget Left</th>
+                  <th className="text-right py-3 px-4 text-gray-400 font-semibold text-sm">Spent</th>
+                  <th className="text-center py-3 px-4 text-gray-400 font-semibold text-sm">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.map((team) => {
+                  const isSelected = localTeamId === team.id
+                  const spent = 100 - team.budget
+                  return (
+                    <motion.tr
+                      key={team.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-all ${
+                        isSelected ? 'bg-orange-500/10' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${team.color}`}></div>
+                          <span className={`font-semibold ${isSelected ? 'text-orange-400' : 'text-white'}`}>
+                            {team.name}
+                            {isSelected && <span className="ml-2 text-xs text-orange-500">(You)</span>}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-white font-bold">{team.players.length}</span>
+                        <span className="text-gray-500 text-sm">/{team.maxPlayers}</span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`font-bold ${team.budget < 20 ? 'text-red-400' : 'text-green-400'}`}>
+                          ₹{team.budget} Cr
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className="text-orange-400 font-bold">₹{spent} Cr</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {!isSelected && (
+                          <button
+                            onClick={() => handleTeamSwitch(team.id)}
+                            className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg font-semibold transition-all"
+                          >
+                            Switch
+                          </button>
+                        )}
+                        {isSelected && (
+                          <span className="text-orange-500 text-sm font-semibold">Active</span>
+                        )}
+                      </td>
+                    </motion.tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Detailed Teams View */}
+          <AnimatePresence>
+            {showTeamsTable && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mt-6"
+              >
+                {/* Team Selection Tabs */}
+                <div className="flex flex-wrap gap-2 mb-6 p-2 bg-slate-900/50 rounded-xl border border-slate-700">
+                  {teams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => setSelectedTeamForAnalysis(team.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                        selectedTeamForAnalysis === team.id
+                          ? 'bg-gradient-to-r ' + team.color + ' text-white shadow-lg'
+                          : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${team.color}`}></div>
+                      <span className="text-sm">{team.name}</span>
+                      {localTeamId === team.id && (
+                        <span className="text-xs bg-orange-500/30 px-1.5 py-0.5 rounded">YOU</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected Team Analysis */}
+                <AnimatePresence mode="wait">
+                  {selectedTeamForAnalysis && (() => {
+                    const team = teams.find(t => t.id === selectedTeamForAnalysis)
+                    if (!team) return null
+
+                    const batsmen = team.players.filter(p => p.role === "Batsman")
+                    const bowlers = team.players.filter(p => p.role === "Bowler")
+                    const allRounders = team.players.filter(p => p.role === "All-rounder")
+                    const wicketKeepers = team.players.filter(p => p.role === "Wicket-keeper")
+
+                    return (
+                      <motion.div
+                        key={team.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-6"
+                      >
+                        {/* Team Summary Card */}
+                        <div className={`bg-gradient-to-br ${team.color} rounded-xl p-6 shadow-2xl`}>
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h2 className="text-3xl font-black text-white mb-2">{team.name}</h2>
+                              {localTeamId === team.id && (
+                                <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                  Your Team
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-white/80 text-sm">Total Players</p>
+                              <p className="text-4xl font-black text-white">{team.players.length}</p>
+                              <p className="text-white/60 text-xs">of {team.maxPlayers}</p>
+                            </div>
+                          </div>
+
+                          {/* Budget and Stats */}
+                          <div className="grid grid-cols-3 gap-4 mt-6">
+                            <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center">
+                              <p className="text-white/80 text-xs mb-1">Budget Remaining</p>
+                              <p className="text-2xl font-black text-white">₹{team.budget}</p>
+                              <p className="text-white/60 text-xs">Crores</p>
+                            </div>
+                            <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center">
+                              <p className="text-white/80 text-xs mb-1">Money Spent</p>
+                              <p className="text-2xl font-black text-white">₹{100 - team.budget}</p>
+                              <p className="text-white/60 text-xs">Crores</p>
+                            </div>
+                            <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center">
+                              <p className="text-white/80 text-xs mb-1">Avg. Price</p>
+                              <p className="text-2xl font-black text-white">
+                                ₹{team.players.length > 0 ? ((100 - team.budget) / team.players.length).toFixed(1) : '0'}
+                              </p>
+                              <p className="text-white/60 text-xs">Per Player</p>
+                            </div>
+                          </div>
+
+                          {/* Squad Composition */}
+                          <div className="grid grid-cols-4 gap-3 mt-6">
+                            <div className="bg-blue-500/20 backdrop-blur rounded-lg p-3 text-center border border-blue-400/30">
+                              <p className="text-blue-200 text-xs mb-1">Batsmen</p>
+                              <p className="text-2xl font-black text-white">{batsmen.length}</p>
+                            </div>
+                            <div className="bg-red-500/20 backdrop-blur rounded-lg p-3 text-center border border-red-400/30">
+                              <p className="text-red-200 text-xs mb-1">Bowlers</p>
+                              <p className="text-2xl font-black text-white">{bowlers.length}</p>
+                            </div>
+                            <div className="bg-purple-500/20 backdrop-blur rounded-lg p-3 text-center border border-purple-400/30">
+                              <p className="text-purple-200 text-xs mb-1">All-Rounders</p>
+                              <p className="text-2xl font-black text-white">{allRounders.length}</p>
+                            </div>
+                            <div className="bg-green-500/20 backdrop-blur rounded-lg p-3 text-center border border-green-400/30">
+                              <p className="text-green-200 text-xs mb-1">Wicket-Keepers</p>
+                              <p className="text-2xl font-black text-white">{wicketKeepers.length}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Squad List by Role */}
+                        {team.players.length > 0 ? (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Batsmen */}
+                            {batsmen.length > 0 && (
+                              <div className="bg-slate-800 rounded-xl p-5 border border-blue-500/30">
+                                <h3 className="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+                                  <span className="text-2xl">🏏</span>
+                                  Batsmen ({batsmen.length})
+                                </h3>
+                                <div className="space-y-2">
+                                  {batsmen.map((player, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <p className="text-white font-semibold">{player.name}</p>
+                                          <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
+                                          <p className="text-xs text-gray-500">
+                                            {player.soldPrice && player.basePrice
+                                              ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
+                                              : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Bowlers */}
+                            {bowlers.length > 0 && (
+                              <div className="bg-slate-800 rounded-xl p-5 border border-red-500/30">
+                                <h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
+                                  <span className="text-2xl">⚡</span>
+                                  Bowlers ({bowlers.length})
+                                </h3>
+                                <div className="space-y-2">
+                                  {bowlers.map((player, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <p className="text-white font-semibold">{player.name}</p>
+                                          <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
+                                          <p className="text-xs text-gray-500">
+                                            {player.soldPrice && player.basePrice
+                                              ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
+                                              : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* All-Rounders */}
+                            {allRounders.length > 0 && (
+                              <div className="bg-slate-800 rounded-xl p-5 border border-purple-500/30">
+                                <h3 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+                                  <span className="text-2xl">💪</span>
+                                  All-Rounders ({allRounders.length})
+                                </h3>
+                                <div className="space-y-2">
+                                  {allRounders.map((player, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <p className="text-white font-semibold">{player.name}</p>
+                                          <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
+                                          <p className="text-xs text-gray-500">
+                                            {player.soldPrice && player.basePrice
+                                              ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
+                                              : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Wicket-Keepers */}
+                            {wicketKeepers.length > 0 && (
+                              <div className="bg-slate-800 rounded-xl p-5 border border-green-500/30">
+                                <h3 className="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
+                                  <span className="text-2xl">🧤</span>
+                                  Wicket-Keepers ({wicketKeepers.length})
+                                </h3>
+                                <div className="space-y-2">
+                                  {wicketKeepers.map((player, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <p className="text-white font-semibold">{player.name}</p>
+                                          <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
+                                          <p className="text-xs text-gray-500">
+                                            {player.soldPrice && player.basePrice
+                                              ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
+                                              : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700">
+                            <p className="text-4xl mb-4">🏏</p>
+                            <p className="text-gray-400 text-lg">No players purchased yet</p>
+                            <p className="text-gray-500 text-sm mt-2">Start bidding to build your squad!</p>
+                          </div>
+                        )}
+                      </motion.div>
+                    )
+                  })()}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     </div>

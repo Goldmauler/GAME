@@ -48,9 +48,42 @@ function createTeams() {
   }))
 }
 
-// Use real IPL players from fetch-players.js
+// Use real IPL players from fetch-players.js and categorize them
 function createPlayers() {
-  return fetchRealPlayers()
+  const allPlayers = fetchRealPlayers()
+  
+  // Categorize players by role
+  const categorized = {
+    marquee: [],
+    batsmen: [],
+    bowlers: [],
+    allrounders: [],
+    wicketkeepers: []
+  }
+  
+  allPlayers.forEach(player => {
+    const role = player.role.toLowerCase()
+    
+    // Marquee players (high base price)
+    if (player.basePrice >= 10) {
+      categorized.marquee.push(player)
+    }
+    // Categorize by role
+    else if (role.includes('batsman') || role.includes('batter')) {
+      categorized.batsmen.push(player)
+    } else if (role.includes('bowler')) {
+      categorized.bowlers.push(player)
+    } else if (role.includes('all-rounder') || role.includes('allrounder')) {
+      categorized.allrounders.push(player)
+    } else if (role.includes('wicket-keeper') || role.includes('wicketkeeper')) {
+      categorized.wicketkeepers.push(player)
+    } else {
+      // Default to batsmen if unclear
+      categorized.batsmen.push(player)
+    }
+  })
+  
+  return categorized
 }
 
 // Database helper functions
@@ -93,28 +126,87 @@ class AuctionRoom {
     this.hostName = hostName
     this.hostId = hostId
     this.teams = createTeams()
-    this.players = createPlayers()
-    this.clients = new Map() // ws -> {teamId, userName, userId, isHost}
+    this.playerCategories = createPlayers() // Categorized players
+    this.players = [] // Flattened array for current round
+    this.clients = new Map() // ws -> {teamId, userName, userId, isHost, ready}
     this.takenTeams = new Set() // Track which teams are taken
     this.minTeams = 2 // Minimum teams to start auction
     this.startCountdown = null // Countdown timer
+    
+    // Enhanced auction state with realistic features
     this.auctionState = {
       playerIndex: 0,
-      currentPrice: this.players[0].basePrice,
+      currentPrice: 0,
       highestBidder: null,
       bidHistory: [],
-      timeLeft: 30,
-      phase: "lobby", // lobby, countdown, active, completed
+      timeLeft: 60,
+      phase: "lobby", // lobby, countdown, active, break, strategic_timeout, completed
       countdownSeconds: 10,
+      
+      // Round-based system
+      currentRound: 1, // Round 1: Normal, Round 2: Accelerated for unsold
+      maxRounds: 2,
+      unsoldPlayers: [],
+      
+      // Category system
+      currentCategory: 'marquee', // marquee, batsmen, bowlers, allrounders, wicketkeepers
+      categoryOrder: ['marquee', 'batsmen', 'allrounders', 'bowlers', 'wicketkeepers'],
+      categoryIndex: 0,
+      
+      // Break system
+      breakType: null, // 'category', 'strategic', 'snack'
+      breakTimeLeft: 0,
+      breakMessage: '',
+      
+      // Strategic timeouts (2 per team)
+      strategicTimeouts: {}, // teamId -> remaining timeouts
+      
+      // RTM (Right to Match) - 1 per team
+      rtmAvailable: {}, // teamId -> has RTM
+      
+      // Stats
+      totalPlayersSold: 0,
+      totalMoneySpent: 0,
     }
+    
+    // Initialize strategic timeouts and RTM for all teams
+    this.teams.forEach(team => {
+      this.auctionState.strategicTimeouts[team.id] = 2
+      this.auctionState.rtmAvailable[team.id] = true
+    })
+    
     this.tickInterval = null
     this.countdownInterval = null
     this.createdAt = Date.now()
+    
+    // Build initial player list (Marquee players first)
+    this.buildPlayerList()
+  }
+  
+  buildPlayerList() {
+    // Build player list based on current round and category
+    const category = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
+    
+    if (this.auctionState.currentRound === 1) {
+      // Round 1: All players from current category
+      this.players = [...this.playerCategories[category]]
+    } else {
+      // Round 2: Unsold players (accelerated auction with reduced base price)
+      this.players = this.auctionState.unsoldPlayers.map(p => ({
+        ...p,
+        basePrice: Math.max(0.5, p.basePrice * 0.5) // 50% reduced base price
+      }))
+    }
+    
+    if (this.players.length > 0) {
+      this.auctionState.currentPrice = this.players[0].basePrice
+      this.auctionState.playerIndex = 0
+    }
   }
 
   addClient(ws, teamId, userName, userId) {
     const isHost = userId === this.hostId
-    this.clients.set(ws, { teamId, userName, userId, isHost })
+    this.clients.set(ws, { teamId, userName, userId, isHost, ready: false })
     
     // Only add to takenTeams if teamId is not null
     if (teamId) {
@@ -163,6 +255,47 @@ class AuctionRoom {
     this.clients.set(ws, client)
     
     return true
+  }
+
+  setPlayerReady(ws, ready) {
+    const client = this.clients.get(ws)
+    if (!client) return false
+    
+    client.ready = ready
+    this.clients.set(ws, client)
+    
+    return true
+  }
+
+  getLobbyPlayers() {
+    const players = []
+    this.clients.forEach((client, ws) => {
+      if (client.teamId) {
+        const team = this.teams.find(t => t.id === client.teamId)
+        players.push({
+          teamId: client.teamId,
+          teamName: team ? team.name : 'Unknown Team',
+          userName: client.userName,
+          ready: client.ready || false,
+          isHost: client.isHost || false,
+        })
+      }
+    })
+    return players
+  }
+
+  broadcastLobbyUpdate() {
+    const players = this.getLobbyPlayers()
+    const message = JSON.stringify({
+      type: 'lobby-update',
+      payload: { players }
+    })
+    
+    this.clients.forEach((_, ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message)
+      }
+    })
   }
 
   startCountdownTimer() {
@@ -324,40 +457,216 @@ class AuctionRoom {
     this.auctionState.currentPrice = amount
     this.auctionState.highestBidder = teamId
     this.auctionState.bidHistory.push({ team: teamId, price: amount, timestamp: Date.now() })
-    this.auctionState.timeLeft = Math.max(5, Math.min(10, this.auctionState.timeLeft + 3))
+    this.auctionState.timeLeft = Math.max(10, Math.min(20, this.auctionState.timeLeft + 5)) // Increased time extension
 
     return true
   }
 
   nextPlayer() {
+    const currentPlayer = this.players[this.auctionState.playerIndex]
+    
     // Award player to highest bidder
     if (this.auctionState.highestBidder) {
       const team = this.teams.find(t => t.id === this.auctionState.highestBidder)
       if (team) {
-        const player = this.players[this.auctionState.playerIndex]
-        team.players.push({ ...player, soldPrice: this.auctionState.currentPrice, soldTo: team.id })
+        team.players.push({ ...currentPlayer, soldPrice: this.auctionState.currentPrice, soldTo: team.id })
         team.budget -= this.auctionState.currentPrice
+        
+        // Update stats
+        this.auctionState.totalPlayersSold += 1
+        this.auctionState.totalMoneySpent += this.auctionState.currentPrice
+        
+        // Broadcast player sold event
+        const soldMessage = JSON.stringify({
+          type: 'player-sold',
+          payload: {
+            player: currentPlayer,
+            soldTo: team.id,
+            soldToName: team.name,
+            soldPrice: this.auctionState.currentPrice,
+          }
+        })
+        
+        this.clients.forEach((_, ws) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(soldMessage)
+          }
+        })
         
         // Save player purchase to database (only for human-controlled teams)
         if (this.takenTeams.has(team.id)) {
-          this.savePlayerPurchase(team, player, this.auctionState.currentPrice).catch(err => {
+          this.savePlayerPurchase(team, currentPlayer, this.auctionState.currentPrice).catch(err => {
             console.error(`Failed to save player purchase:`, err.message)
           })
         }
       }
+    } else {
+      // Player unsold - add to unsold list
+      if (this.auctionState.currentRound === 1) {
+        this.auctionState.unsoldPlayers.push(currentPlayer)
+      }
     }
 
-    // Move to next player
+    // Move to next player or category
     if (this.auctionState.playerIndex < this.players.length - 1) {
       this.auctionState.playerIndex += 1
       this.auctionState.currentPrice = this.players[this.auctionState.playerIndex].basePrice
       this.auctionState.highestBidder = null
       this.auctionState.bidHistory = []
-      this.auctionState.timeLeft = 30
+      this.auctionState.timeLeft = this.auctionState.currentRound === 1 ? 60 : 30 // Accelerated in round 2
     } else {
-      // Auction complete
-      this.completeAuction()
+      // Category complete - check for break or next category
+      this.handleCategoryComplete()
     }
+  }
+  
+  handleCategoryComplete() {
+    const categoryName = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
+    const nextCategoryIndex = this.auctionState.categoryIndex + 1
+    
+    // Check if more categories in current round
+    if (nextCategoryIndex < this.auctionState.categoryOrder.length) {
+      // Start category break
+      this.startCategoryBreak(categoryName, this.auctionState.categoryOrder[nextCategoryIndex])
+    } else {
+      // Round complete - check for next round
+      if (this.auctionState.currentRound < this.auctionState.maxRounds && this.auctionState.unsoldPlayers.length > 0) {
+        // Start snack break before round 2
+        this.startSnackBreak()
+      } else {
+        // Auction complete
+        this.completeAuction()
+      }
+    }
+  }
+  
+  startCategoryBreak(completedCategory, nextCategory) {
+    this.auctionState.phase = 'break'
+    this.auctionState.breakType = 'category'
+    this.auctionState.breakTimeLeft = 30 // 30 second break
+    this.auctionState.breakMessage = `${this.getCategoryDisplayName(completedCategory)} auction complete! Next up: ${this.getCategoryDisplayName(nextCategory)}`
+    
+    this.stopTicking()
+    this.broadcastState()
+    
+    // Start break countdown
+    const breakInterval = setInterval(() => {
+      this.auctionState.breakTimeLeft -= 1
+      this.broadcastState()
+      
+      if (this.auctionState.breakTimeLeft <= 0) {
+        clearInterval(breakInterval)
+        this.endBreak()
+      }
+    }, 1000)
+  }
+  
+  startSnackBreak() {
+    this.auctionState.phase = 'break'
+    this.auctionState.breakType = 'snack'
+    this.auctionState.breakTimeLeft = 60 // 1 minute break
+    this.auctionState.breakMessage = `🍿 Round 1 Complete! Snack Break - Get ready for Accelerated Auction Round 2!`
+    
+    this.stopTicking()
+    this.broadcastState()
+    
+    // Start break countdown
+    const breakInterval = setInterval(() => {
+      this.auctionState.breakTimeLeft -= 1
+      this.broadcastState()
+      
+      if (this.auctionState.breakTimeLeft <= 0) {
+        clearInterval(breakInterval)
+        // Move to round 2
+        this.auctionState.currentRound = 2
+        this.auctionState.categoryIndex = 0
+        this.buildPlayerList()
+        this.endBreak()
+      }
+    }, 1000)
+  }
+  
+  endBreak() {
+    // Move to next category
+    this.auctionState.categoryIndex += 1
+    if (this.auctionState.categoryIndex >= this.auctionState.categoryOrder.length) {
+      this.auctionState.categoryIndex = 0
+    }
+    
+    this.buildPlayerList()
+    this.auctionState.phase = 'active'
+    this.auctionState.breakType = null
+    this.auctionState.breakTimeLeft = 0
+    this.auctionState.breakMessage = ''
+    
+    // Broadcast category change
+    const categoryMessage = JSON.stringify({
+      type: 'category-change',
+      payload: {
+        category: this.auctionState.currentCategory,
+        categoryName: this.getCategoryDisplayName(this.auctionState.currentCategory),
+        round: this.auctionState.currentRound,
+        message: `Now auctioning: ${this.getCategoryDisplayName(this.auctionState.currentCategory)}`
+      }
+    })
+    
+    this.clients.forEach((_, ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(categoryMessage)
+      }
+    })
+    
+    this.startTicking()
+    this.broadcastState()
+  }
+  
+  getCategoryDisplayName(category) {
+    const names = {
+      'marquee': '⭐ Marquee Players',
+      'batsmen': '🏏 Batsmen',
+      'bowlers': '⚡ Bowlers',
+      'allrounders': '💪 All-Rounders',
+      'wicketkeepers': '🧤 Wicket-Keepers'
+    }
+    return names[category] || category
+  }
+  
+  // Strategic timeout
+  requestStrategicTimeout(teamId) {
+    if (this.auctionState.phase !== 'active') return false
+    if (this.auctionState.strategicTimeouts[teamId] <= 0) return false
+    
+    this.auctionState.strategicTimeouts[teamId] -= 1
+    this.startStrategicTimeout(teamId)
+    return true
+  }
+  
+  startStrategicTimeout(teamId) {
+    const team = this.teams.find(t => t.id === teamId)
+    
+    this.auctionState.phase = 'strategic_timeout'
+    this.auctionState.breakType = 'strategic'
+    this.auctionState.breakTimeLeft = 90 // 90 seconds strategic timeout
+    this.auctionState.breakMessage = `⏸️ Strategic Timeout called by ${team ? team.name : 'Team'}`
+    
+    this.stopTicking()
+    this.broadcastState()
+    
+    // Start timeout countdown
+    const timeoutInterval = setInterval(() => {
+      this.auctionState.breakTimeLeft -= 1
+      this.broadcastState()
+      
+      if (this.auctionState.breakTimeLeft <= 0) {
+        clearInterval(timeoutInterval)
+        this.auctionState.phase = 'active'
+        this.auctionState.breakType = null
+        this.auctionState.breakTimeLeft = 0
+        this.auctionState.breakMessage = ''
+        this.startTicking()
+        this.broadcastState()
+      }
+    }, 1000)
   }
 
   completeAuction() {
@@ -367,8 +676,25 @@ class AuctionRoom {
     // Calculate ratings
     const ratings = this.teams.map(team => ({
       teamId: team.id,
+      teamName: team.name,
       ...calculateTeamRating(team),
     }))
+
+    // Broadcast auction complete event
+    const completeMessage = JSON.stringify({
+      type: 'auction-complete',
+      payload: {
+        message: 'Auction completed!',
+        ratings: ratings,
+        finalTeams: this.teams
+      }
+    })
+    
+    this.clients.forEach((_, ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(completeMessage)
+      }
+    })
 
     this.broadcastResults(ratings)
     
@@ -379,13 +705,47 @@ class AuctionRoom {
   }
 
   broadcastState() {
+    const currentPlayer = this.players[this.auctionState.playerIndex]
+    const currentCategory = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
+    
+    // Build bid history with team names
+    const enrichedBidHistory = this.auctionState.bidHistory.map(bid => {
+      const team = this.teams.find(t => t.id === bid.team)
+      return {
+        teamId: bid.team,
+        teamName: team ? team.name : 'Unknown',
+        price: bid.price,
+        timestamp: bid.timestamp
+      }
+    })
+    
     const message = JSON.stringify({
-      type: 'state',
+      type: 'auction-state',
       payload: {
         teams: this.teams,
-        auctionState: this.auctionState,
+        currentPlayer: currentPlayer,
+        currentPrice: this.auctionState.currentPrice,
+        highestBidder: this.auctionState.highestBidder,
+        bidHistory: enrichedBidHistory,
+        timeLeft: this.auctionState.timeLeft,
+        playerIndex: this.auctionState.playerIndex,
+        totalPlayers: this.players.length,
+        phase: this.auctionState.phase,
         roomCode: this.roomCode,
-        playerCount: this.clients.size,
+        
+        // Enhanced auction info
+        currentRound: this.auctionState.currentRound,
+        maxRounds: this.auctionState.maxRounds,
+        currentCategory: currentCategory,
+        categoryName: this.getCategoryDisplayName(currentCategory),
+        breakType: this.auctionState.breakType,
+        breakTimeLeft: this.auctionState.breakTimeLeft,
+        breakMessage: this.auctionState.breakMessage,
+        strategicTimeouts: this.auctionState.strategicTimeouts,
+        rtmAvailable: this.auctionState.rtmAvailable,
+        totalPlayersSold: this.auctionState.totalPlayersSold,
+        totalMoneySpent: this.auctionState.totalMoneySpent,
+        unsoldPlayersCount: this.auctionState.unsoldPlayers.length,
       },
     })
 
@@ -586,12 +946,20 @@ function handleMessage(ws, msg) {
       handleSelectTeam(ws, payload)
       break
     
+    case 'player-ready':
+      handlePlayerReady(ws, payload)
+      break
+    
     case 'start-auction':
       handleStartAuction(ws)
       break
     
     case 'bid':
       handleBid(ws, payload)
+      break
+    
+    case 'strategic-timeout':
+      handleStrategicTimeout(ws, payload)
       break
     
     case 'list-rooms':
@@ -616,6 +984,9 @@ function handleCreateRoom(ws, payload) {
   rooms.set(roomCode, room)
   clientRooms.set(ws, roomCode)
 
+  // Add host as a client in the room
+  room.addClient(ws, null, hostName || 'Host', hostId)
+
   console.log(`✅ Room ${roomCode} created by ${hostName}`)
 
   // Save room to database
@@ -628,10 +999,15 @@ function handleCreateRoom(ws, payload) {
     payload: {
       roomCode,
       hostId,
+      isHost: true,
       roomInfo: room.getRoomInfo(),
       availableTeams: room.teams,
+      takenTeams: Array.from(room.takenTeams),
     },
   }))
+
+  // Send initial lobby state (empty at creation)
+  room.broadcastLobbyUpdate()
 }
 
 function handleJoinRoom(ws, payload) {
@@ -643,6 +1019,29 @@ function handleJoinRoom(ws, payload) {
       type: 'error',
       payload: { message: 'Room not found' },
     }))
+    return
+  }
+
+  // Check if this client is already in the room
+  const existingClient = room.clients.get(ws)
+  if (existingClient) {
+    console.log(`${userName} already in room ${roomCode}, sending room-joined confirmation`)
+    
+    // Just send confirmation, don't add again
+    ws.send(JSON.stringify({
+      type: 'room-joined',
+      payload: {
+        roomCode,
+        userId: existingClient.userId,
+        roomInfo: room.getRoomInfo(),
+        availableTeams: room.teams,
+        isHost: existingClient.isHost,
+        takenTeams: Array.from(room.takenTeams),
+      },
+    }))
+    
+    // Send current lobby state
+    room.broadcastLobbyUpdate()
     return
   }
 
@@ -677,8 +1076,12 @@ function handleJoinRoom(ws, payload) {
       roomInfo: room.getRoomInfo(),
       availableTeams: room.teams,
       isHost: playerId === room.hostId,
+      takenTeams: Array.from(room.takenTeams),
     },
   }))
+
+  // Send initial lobby state to the new player
+  room.broadcastLobbyUpdate()
 
   // Notify all clients about room update
   const updateMessage = JSON.stringify({
@@ -686,6 +1089,7 @@ function handleJoinRoom(ws, payload) {
     payload: {
       roomInfo: room.getRoomInfo(),
       availableTeams: room.teams,
+      takenTeams: Array.from(room.takenTeams),
     },
   })
   
@@ -730,12 +1134,16 @@ function handleSelectTeam(ws, payload) {
       }
     }))
     
+    // Broadcast lobby update to all clients
+    room.broadcastLobbyUpdate()
+    
     // Broadcast room update to all clients
     const updateMessage = JSON.stringify({
       type: 'room-update',
       payload: {
         roomInfo: room.getRoomInfo(),
         availableTeams: room.teams,
+        takenTeams: Array.from(room.takenTeams),
       },
     })
     
@@ -750,9 +1158,43 @@ function handleSelectTeam(ws, payload) {
       room.notifyReadyToStart()
     }
   } else {
+    console.log(`❌ Team ${teamId} is already taken or unavailable`)
+    ws.send(JSON.stringify({
+      type: 'team-taken-error',
+      payload: { 
+        message: 'This team is already taken! Please select another team.',
+        teamId
+      }
+    }))
+  }
+}
+
+function handlePlayerReady(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) {
+    console.log('❌ Player ready: No room code found')
+    return
+  }
+
+  const room = rooms.get(roomCode)
+  if (!room) {
+    console.log('❌ Player ready: Room not found')
+    return
+  }
+
+  const { ready } = payload
+  const success = room.setPlayerReady(ws, ready)
+  
+  if (success) {
+    const client = room.clients.get(ws)
+    console.log(`✅ ${client.userName} is ${ready ? 'ready' : 'not ready'}`)
+    
+    // Broadcast lobby update to all clients
+    room.broadcastLobbyUpdate()
+  } else {
     ws.send(JSON.stringify({
       type: 'error',
-      payload: { message: 'Team already taken or unavailable' }
+      payload: { message: 'Could not set ready status' }
     }))
   }
 }
@@ -795,9 +1237,21 @@ function handleStartAuction(ws) {
     return
   }
 
-  console.log('✅ All validations passed, starting countdown...')
+  console.log('✅ All validations passed, starting auction...')
 
-  // Start 10-second countdown
+  // Notify all clients that auction is starting
+  const startMessage = JSON.stringify({
+    type: 'start-auction',
+    payload: { message: 'Auction is starting!' }
+  })
+  
+  room.clients.forEach((_, clientWs) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(startMessage)
+    }
+  })
+
+  // Start the auction countdown
   const started = room.startCountdownTimer()
   if (!started) {
     console.log('❌ Failed to start countdown timer')
@@ -834,6 +1288,42 @@ function handleBid(ws, payload) {
   const success = room.placeBid(teamId, amount)
   if (success) {
     room.broadcastState()
+  }
+}
+
+function handleStrategicTimeout(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const { teamId } = payload
+  const client = room.clients.get(ws)
+
+  if (!client || client.teamId !== teamId) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'You can only use timeout for your own team' },
+    }))
+    return
+  }
+
+  const success = room.requestStrategicTimeout(teamId)
+  if (success) {
+    ws.send(JSON.stringify({
+      type: 'timeout-used',
+      payload: {
+        teamId,
+        remaining: room.auctionState.strategicTimeouts[teamId]
+      }
+    }))
+    room.broadcastState()
+  } else {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'No strategic timeouts remaining or auction not active' },
+    }))
   }
 }
 
