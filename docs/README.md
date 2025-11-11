@@ -19,6 +19,20 @@ Welcome to the complete documentation for the IPL Auction Game project!
 
 ---
 
+### 🎯 [PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md)
+
+**Executive overview and project stats**
+
+- Project achievements and metrics
+- Architecture visualization
+- Key technologies explained
+- Performance and scalability
+- Future enhancements
+
+👉 **Perfect for quick project understanding**
+
+---
+
 ### 📋 [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)
 
 **Complete project understanding**
@@ -85,6 +99,9 @@ Welcome to the complete documentation for the IPL Auction Game project!
 **...play the game right now**
 → Go to [QUICKSTART.md](./QUICKSTART.md)
 
+**...get a quick overview of the project**
+→ Go to [PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md)
+
 **...understand what this project does**
 → Go to [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)
 
@@ -98,7 +115,7 @@ Welcome to the complete documentation for the IPL Auction Game project!
 → Go to [GAME_RULES.md](./GAME_RULES.md)
 
 **...contribute to the project**
-→ Read [TECH_STACK.md](./TECH_STACK.md) + [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)
+→ Read [PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md) + [TECH_STACK.md](./TECH_STACK.md)
 
 **...deploy to production**
 → Go to [SETUP_GUIDE.md](./SETUP_GUIDE.md) → Production Deployment
