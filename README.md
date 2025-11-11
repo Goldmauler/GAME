@@ -76,14 +76,14 @@ npm run start-room-server
 
 All comprehensive documentation is available in the **[`docs/`](./docs/)** folder:
 
-| Document | Description | When to Read |
-|----------|-------------|--------------|
-| **[📖 Quick Start](./docs/QUICKSTART.md)** | 5-minute setup guide | Start here! |
-| **[🎯 Project Summary](./docs/PROJECT_SUMMARY.md)** | Stats & overview | Quick understanding |
-| **[📋 Project Overview](./docs/PROJECT_OVERVIEW.md)** | Complete guide | Detailed understanding |
-| **[🛠️ Setup Guide](./docs/SETUP_GUIDE.md)** | Detailed installation | Production setup |
-| **[🔧 Tech Stack](./docs/TECH_STACK.md)** | Technology breakdown | For developers |
-| **[🎮 Game Rules](./docs/GAME_RULES.md)** | Rules and strategies | Master the game |
+| Document                                              | Description           | When to Read           |
+| ----------------------------------------------------- | --------------------- | ---------------------- |
+| **[📖 Quick Start](./docs/QUICKSTART.md)**            | 5-minute setup guide  | Start here!            |
+| **[🎯 Project Summary](./docs/PROJECT_SUMMARY.md)**   | Stats & overview      | Quick understanding    |
+| **[📋 Project Overview](./docs/PROJECT_OVERVIEW.md)** | Complete guide        | Detailed understanding |
+| **[🛠️ Setup Guide](./docs/SETUP_GUIDE.md)**           | Detailed installation | Production setup       |
+| **[🔧 Tech Stack](./docs/TECH_STACK.md)**             | Technology breakdown  | For developers         |
+| **[🎮 Game Rules](./docs/GAME_RULES.md)**             | Rules and strategies  | Master the game        |
 
 👉 **[View Full Documentation Index →](./docs/README.md)**
 
