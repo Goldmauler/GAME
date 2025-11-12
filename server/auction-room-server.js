@@ -2,13 +2,58 @@ const WebSocket = require("ws")
 const { calculateTeamRating } = require("./team-rating")
 const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
 const fetch = require("node-fetch")
+const os = require("os")
 
 const PORT = process.env.AUCTION_PORT || 8080
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000"
 
-const wss = new WebSocket.Server({ port: PORT })
+const wss = new WebSocket.Server({ 
+  port: PORT,
+  host: '0.0.0.0' // Listen on all network interfaces (allows external connections)
+})
 
-console.log(`🏏 IPL Auction Room Server starting on ws://localhost:${PORT}`)
+// Helper function to get local IP addresses
+function getLocalIPs() {
+  const interfaces = os.networkInterfaces()
+  const ips = []
+  
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      // Skip internal (loopback) and non-IPv4 addresses
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(iface.address)
+      }
+    }
+  }
+  
+  return ips
+}
+
+console.log(`\n🏏 IPL Auction Room Server Started Successfully!\n`)
+console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+console.log(`📡 WebSocket Server Running on Port: ${PORT}`)
+console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
+
+console.log(`🌐 Access Points:\n`)
+console.log(`   Local Machine:`)
+console.log(`   └─ ws://localhost:${PORT}\n`)
+
+const localIPs = getLocalIPs()
+if (localIPs.length > 0) {
+  console.log(`   Other Devices on Network:`)
+  localIPs.forEach(ip => {
+    console.log(`   └─ ws://${ip}:${PORT}`)
+  })
+  console.log(`\n📱 Share this with other players:`)
+  console.log(`   Web App: http://${localIPs[0]}:3000`)
+} else {
+  console.log(`   ⚠️  No network interfaces found. Only accessible via localhost.`)
+}
+
+console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+console.log(`💡 Tip: Make sure Next.js dev server is running on port 3000`)
+console.log(`    Run: npm run dev (in another terminal)\n`)
+console.log(`🔥 Ready to accept connections!\n`)
 
 // Room management
 const rooms = new Map() // roomCode -> Room object

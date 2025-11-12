@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import PlayerAnalysis from "./player-analysis"
+import PlayerAnalysisEnhanced from "./player-analysis-enhanced"
 
 interface Team {
   id: string
@@ -183,7 +183,7 @@ export default function AuctionArena({
       {/* Player Analysis Modal */}
       <AnimatePresence>
         {selectedPlayerForAnalysis && (
-          <PlayerAnalysis player={selectedPlayerForAnalysis} onClose={() => setSelectedPlayerForAnalysis(null)} />
+          <PlayerAnalysisEnhanced player={selectedPlayerForAnalysis} onClose={() => setSelectedPlayerForAnalysis(null)} />
         )}
       </AnimatePresence>
 

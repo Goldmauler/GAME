@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useInterval } from "@/hooks/use-interval"
 import TeamSelection from "./team-selection"
-import PlayerAnalysis from "./player-analysis"
+import AuctioneerController from "./auctioneer-controller"
+import PlayerAnalysisEnhanced from "./player-analysis-enhanced"
+import BiddingStrategyDisplay from "./bidding-strategy-display"
 
 declare global {
   namespace JSX {
@@ -395,7 +397,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
       {/* Player Analysis Modal */}
       <AnimatePresence>
         {selectedPlayerForAnalysis && (
-          <PlayerAnalysis
+          <PlayerAnalysisEnhanced
             player={selectedPlayerForAnalysis}
             onClose={() => setSelectedPlayerForAnalysis(null)}
           />
