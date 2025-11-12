@@ -1,11 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
 import AuctionRoomApp from "@/components/auction-room-app"
 import Header from "@/components/header"
 
 export default function RoomPage() {
+  const [mounted, setMounted] = useState(false)
+
+  // Generate particles positions once on client side
+  const particles = useMemo(() => {
+    return [...Array(15)].map(() => ({
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      xOffset: Math.random() * 100 - 50,
+      duration: Math.random() * 10 + 10,
+      delay: Math.random() * 5,
+    }))
+  }, [])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-foreground overflow-hidden">
       {/* Enhanced 3D background with animated elements */}
@@ -55,24 +72,24 @@ export default function RoomPage() {
           className="absolute top-1/2 left-1/2 w-[700px] h-[700px] bg-purple-500/8 rounded-full blur-3xl"
         />
         
-        {/* Floating particles */}
-        {[...Array(15)].map((_, i) => (
+        {/* Floating particles - only render on client */}
+        {mounted && particles.map((particle, i) => (
           <motion.div
             key={i}
             animate={{
               y: [-20, -100, -20],
-              x: [0, Math.random() * 100 - 50, 0],
+              x: [0, particle.xOffset, 0],
               opacity: [0, 1, 0],
             }}
             transition={{
-              duration: Math.random() * 10 + 10,
+              duration: particle.duration,
               repeat: Infinity,
-              delay: Math.random() * 5,
+              delay: particle.delay,
             }}
             className="absolute w-2 h-2 bg-orange-500/30 rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${particle.left}%`,
+              top: `${particle.top}%`,
             }}
           />
         ))}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import AuctionArena from "@/components/auction-arena"
 import TeamShowcase from "@/components/team-showcase"
@@ -11,9 +11,22 @@ type GamePhase = "lobby" | "auction" | "results" | "rankings"
 
 export default function Home() {
   const [gamePhase, setGamePhase] = useState<GamePhase>("lobby")
+  const [mounted, setMounted] = useState(false)
+  
+  // Generate particles positions once on client side
+  const particles = useMemo(() => {
+    return [...Array(20)].map(() => ({
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      xOffset: Math.random() * 100 - 50,
+      duration: Math.random() * 10 + 10,
+      delay: Math.random() * 5,
+    }))
+  }, [])
   
   // Load saved state from sessionStorage on mount
   useEffect(() => {
+    setMounted(true)
     const savedPhase = sessionStorage.getItem('gamePhase')
     if (savedPhase && ['lobby', 'auction', 'results', 'rankings'].includes(savedPhase)) {
       setGamePhase(savedPhase as GamePhase)
@@ -94,24 +107,24 @@ export default function Home() {
           className="absolute top-1/4 right-1/4 w-[400px] h-[400px] bg-green-500/8 rounded-full blur-3xl"
         />
         
-        {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
+        {/* Floating particles - only render on client */}
+        {mounted && particles.map((particle, i) => (
           <motion.div
             key={i}
             animate={{
               y: [-20, -100, -20],
-              x: [0, Math.random() * 100 - 50, 0],
+              x: [0, particle.xOffset, 0],
               opacity: [0, 1, 0],
             }}
             transition={{
-              duration: Math.random() * 10 + 10,
+              duration: particle.duration,
               repeat: Infinity,
-              delay: Math.random() * 5,
+              delay: particle.delay,
             }}
             className="absolute w-2 h-2 bg-orange-500/30 rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${particle.left}%`,
+              top: `${particle.top}%`,
             }}
           />
         ))}
