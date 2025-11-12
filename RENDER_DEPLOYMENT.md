@@ -3,12 +3,14 @@
 ## 🚀 Quick Deploy to Render
 
 ### Prerequisites
+
 1. GitHub account
 2. Render account (free) - https://render.com
 
 ### Step-by-Step Deployment
 
 #### 1. Push Code to GitHub
+
 ```bash
 # If not already initialized
 git init
@@ -24,6 +26,7 @@ git push -u origin main
 #### 2. Deploy on Render
 
 **Option A: Blueprint (Automatic - Recommended)**
+
 1. Go to https://render.com/dashboard
 2. Click "New" → "Blueprint"
 3. Connect your GitHub repository (GAME)
@@ -33,6 +36,7 @@ git push -u origin main
 **Option B: Manual Deployment**
 
 **Deploy Web Service (Next.js):**
+
 1. Go to https://dashboard.render.com
 2. Click "New" → "Web Service"
 3. Connect GitHub repo: `Goldmauler/GAME`
@@ -49,6 +53,7 @@ git push -u origin main
 6. Click "Create Web Service"
 
 **Deploy WebSocket Service:**
+
 1. Click "New" → "Web Service"
 2. Connect same GitHub repo
 3. Settings:
@@ -63,10 +68,12 @@ git push -u origin main
 #### 3. Update WebSocket URL
 
 Once both services are deployed, you'll get URLs like:
+
 - Web App: `https://ipl-auction-game.onrender.com`
 - WebSocket: `https://ipl-auction-websocket.onrender.com`
 
 Update the environment variable in the Web Service:
+
 - Go to Web Service → Environment
 - Set `NEXT_PUBLIC_WS_URL` = `wss://ipl-auction-websocket.onrender.com`
 - Click "Save Changes" (service will redeploy)
@@ -85,11 +92,13 @@ Update the environment variable in the Web Service:
 ### Important Notes
 
 ⚠️ **Free Tier Limitations:**
+
 - Services spin down after 15 minutes of inactivity
 - First request after inactivity takes ~30 seconds to wake up
 - 750 hours/month free (enough for 24/7 if only one service)
 
 💡 **Tips:**
+
 - Keep the game open to prevent spin-down during active play
 - Services restart automatically if they crash
 - Logs available in Render dashboard
@@ -97,16 +106,19 @@ Update the environment variable in the Web Service:
 ### Troubleshooting
 
 **WebSocket not connecting:**
+
 1. Check WebSocket service is running (green in dashboard)
 2. Verify `NEXT_PUBLIC_WS_URL` environment variable is correct
 3. Check browser console for errors
 
 **Services spinning down:**
+
 - This is normal on free tier
 - First visitor waits ~30 seconds for wake-up
 - Consider upgrading to paid tier ($7/month) for always-on
 
 **Build failing:**
+
 1. Check build logs in Render dashboard
 2. Ensure `package.json` has all dependencies
 3. Verify Node version compatibility

@@ -37,6 +37,7 @@ git push -u origin main
 5. Wait 5-10 minutes for both services to deploy
 
 ✅ Done! You'll get two URLs:
+
 - `https://ipl-auction-game.onrender.com` (your game)
 - `https://ipl-auction-websocket.onrender.com` (WebSocket server)
 
@@ -67,15 +68,18 @@ Anyone can access it from anywhere in the world! 🌍
 ## ⚠️ Important Notes
 
 ### Free Tier Limitations
+
 - Services **sleep after 15 minutes** of inactivity
 - First load takes **~30 seconds** to wake up
 - **750 hours/month free** (enough for regular use)
 
 ### To Keep Services Always On
+
 - Upgrade to **$7/month** per service
 - Or use a ping service to keep it awake
 
 ### Custom Domain (Optional)
+
 - You can add your own domain in Render settings
 - Example: `auction.yourdomain.com`
 
@@ -86,11 +90,13 @@ Anyone can access it from anywhere in the world! 🌍
 ### WebSocket Not Connecting?
 
 **Check in browser console (F12):**
+
 ```
 Should see: "✅ Using Render WebSocket: wss://ipl-auction-websocket.onrender.com"
 ```
 
 **If not:**
+
 1. Verify WebSocket service is **running** (green dot)
 2. Check `NEXT_PUBLIC_WS_URL` is set correctly
 3. Wait 30 seconds if service was sleeping
@@ -104,6 +110,7 @@ Should see: "✅ Using Render WebSocket: wss://ipl-auction-websocket.onrender.co
 ### Services Keep Sleeping?
 
 This is normal on free tier. Options:
+
 1. Keep the tab open during gameplay
 2. Upgrade to paid plan ($7/month)
 3. Use UptimeRobot (free) to ping every 5 minutes
@@ -113,11 +120,13 @@ This is normal on free tier. Options:
 ## 📊 Monitoring Your App
 
 ### View Logs
+
 - Render Dashboard → Your Service → **Logs**
 - See real-time server activity
 - Debug connection issues
 
 ### Check Status
+
 - Green dot = Running ✅
 - Yellow dot = Deploying 🔄
 - Red dot = Error ❌
@@ -127,12 +136,14 @@ This is normal on free tier. Options:
 ## 🎯 What Changed?
 
 ### Code Updates:
+
 ✅ Added `render.yaml` - Auto-deployment config
 ✅ Updated WebSocket URLs - Auto-detects Render
 ✅ Server port configuration - Works with Render's PORT
 ✅ Environment variable support - Production-ready
 
 ### No Breaking Changes!
+
 - ✅ Still works locally (npm run dev)
 - ✅ Still works with ngrok (for testing)
 - ✅ Now ALSO works on Render (production)
@@ -141,13 +152,13 @@ This is normal on free tier. Options:
 
 ## 🆚 Render vs Ngrok
 
-| Feature | Ngrok (Old) | Render (New) |
-|---------|-------------|--------------|
-| Setup | Terminal windows | One-time deploy |
-| URL | Random | Permanent |
-| Uptime | While running | 24/7 |
-| Cost | Free (limited) | Free (generous) |
-| Best for | Testing | Production |
+| Feature  | Ngrok (Old)      | Render (New)    |
+| -------- | ---------------- | --------------- |
+| Setup    | Terminal windows | One-time deploy |
+| URL      | Random           | Permanent       |
+| Uptime   | While running    | 24/7            |
+| Cost     | Free (limited)   | Free (generous) |
+| Best for | Testing          | Production      |
 
 ---
 
@@ -171,6 +182,6 @@ This is normal on free tier. Options:
 
 ## 🎉 You're Ready!
 
-Your game is **production-ready** and can be accessed by anyone, anywhere! 
+Your game is **production-ready** and can be accessed by anyone, anywhere!
 
 Just push to GitHub and deploy on Render - that's it! 🚀
