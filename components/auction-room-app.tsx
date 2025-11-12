@@ -39,14 +39,38 @@ export default function AuctionRoomApp() {
 
   const connectToServer = () => {
     try {
-      const protocol = typeof window !== 'undefined' && window.location.protocol === "https:" ? "wss" : "ws"
-      const host = typeof window !== 'undefined' ? (window.location.hostname || "localhost") : "localhost"
-      const url = `${protocol}://${host}:8080`
+      let url = 'ws://localhost:8080'
+      
+      if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname
+        
+        console.log('🔍 Detecting WebSocket URL for rooms page...')
+        console.log('   Current hostname:', hostname)
+        
+        // If accessing via localhost
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          url = 'ws://localhost:8080'
+          console.log('   ✅ Using local WebSocket:', url)
+        } 
+        // If accessing via ngrok (internet)
+        else if (hostname.includes('ngrok')) {
+          // Use the WebSocket ngrok tunnel
+          url = 'wss://sheathier-achromatous-meredith.ngrok-free.dev'
+          console.log('   ✅ Using ngrok WebSocket:', url)
+        } 
+        // If accessing via local network IP
+        else {
+          url = 'ws://192.168.56.1:8080'
+          console.log('   ✅ Using network WebSocket:', url)
+        }
+      }
+      
+      console.log('🔌 Connecting to WebSocket:', url)
       const ws = new WebSocket(url)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log("Connected to auction room server", url)
+        console.log('✅ Connected to auction room server:', url)
         setWsConnected(true)
       }
 

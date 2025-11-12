@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebSocket Test</title>
+  </head>
+  <body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Testing...</div>
+    <div id="log"></div>
+
+    <script>
+      const log = document.getElementById("log");
+      const status = document.getElementById("status");
+
+      function addLog(message) {
+        const p = document.createElement("p");
+        p.textContent = new Date().toLocaleTimeString() + ": " + message;
+        log.appendChild(p);
+        console.log(message);
+      }
+
+      // Test ngrok WebSocket
+      addLog("🔍 Testing ngrok WebSocket connection...");
+      addLog("URL: wss://sheathier-achromatous-meredith.ngrok-free.dev");
+
+      const ws = new WebSocket(
+        "wss://sheathier-achromatous-meredith.ngrok-free.dev"
+      );
+
+      ws.onopen = () => {
+        status.textContent = "✅ CONNECTED!";
+        status.style.color = "green";
+        addLog("✅ WebSocket connection opened successfully!");
+      };
+
+      ws.onerror = (error) => {
+        status.textContent = "❌ ERROR";
+        status.style.color = "red";
+        addLog("❌ WebSocket error: " + error);
+        console.error("Full error:", error);
+      };
+
+      ws.onclose = (event) => {
+        addLog(
+          "🔌 WebSocket closed. Code: " +
+            event.code +
+            ", Reason: " +
+            event.reason
+        );
+      };
+
+      ws.onmessage = (event) => {
+        addLog("📨 Message received: " + event.data);
+      };
+    </script>
+  </body>
+</html>

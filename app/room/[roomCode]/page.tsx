@@ -113,9 +113,37 @@ export default function RoomPage() {
 
   const connectToRoom = () => {
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const host = window.location.hostname || 'localhost'
-      const ws = new WebSocket(`${protocol}://${host}:8080`)
+      // Determine WebSocket URL based on how user is accessing the app
+      let wsUrl: string
+      
+      if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname
+        
+        console.log('🔍 Detecting WebSocket URL...')
+        console.log('   Current hostname:', hostname)
+        
+        // If accessing via localhost
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          wsUrl = 'ws://localhost:8080'
+          console.log('   ✅ Using local WebSocket:', wsUrl)
+        } 
+        // If accessing via ngrok (internet)
+        else if (hostname.includes('ngrok')) {
+          // Use the WebSocket ngrok tunnel
+          wsUrl = 'wss://sheathier-achromatous-meredith.ngrok-free.dev'
+          console.log('   ✅ Using ngrok WebSocket:', wsUrl)
+        } 
+        // If accessing via local network IP
+        else {
+          wsUrl = 'ws://192.168.56.1:8080'
+          console.log('   ✅ Using network WebSocket:', wsUrl)
+        }
+      } else {
+        wsUrl = 'ws://localhost:8080'
+      }
+      
+      console.log('Connecting to WebSocket:', wsUrl)
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -134,10 +162,11 @@ export default function RoomPage() {
       }
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
+        console.error('❌ WebSocket error:', error)
+        console.error('   Tried to connect to:', wsUrl)
         toast({
           title: 'Connection Error',
-          description: 'Failed to connect to auction server',
+          description: `Failed to connect to auction server. Check console for details.`,
           variant: 'destructive',
         })
       }

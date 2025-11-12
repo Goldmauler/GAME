@@ -1,4 +1,5 @@
 const WebSocket = require("ws")
+const http = require("http")
 const { calculateTeamRating } = require("./team-rating")
 const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
 const fetch = require("node-fetch")
@@ -7,9 +8,14 @@ const os = require("os")
 const PORT = process.env.AUCTION_PORT || 8080
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000"
 
+// Create HTTP server for ngrok compatibility
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' })
+  res.end('IPL Auction WebSocket Server Running')
+})
+
 const wss = new WebSocket.Server({ 
-  port: PORT,
-  host: '0.0.0.0' // Listen on all network interfaces (allows external connections)
+  server: server // Attach to HTTP server instead of port directly
 })
 
 // Helper function to get local IP addresses
@@ -1420,4 +1426,7 @@ setInterval(() => {
   })
 }, 5 * 60 * 1000)
 
-console.log("✅ Room-based auction server ready!")
+// Start HTTP server
+server.listen(PORT, '0.0.0.0', () => {
+  console.log("✅ Room-based auction server ready!")
+})
