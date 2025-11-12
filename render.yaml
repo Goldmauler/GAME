@@ -2,28 +2,21 @@ services:
   # Next.js Web Service
   - type: web
     name: ipl-auction-game
-    env: node
-    region: singapore
-    plan: free
+    runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_WS_URL
-        sync: false
-    healthCheckPath: /
+        value: wss://ipl-auction-websocket.onrender.com
 
   # WebSocket Server
   - type: web
     name: ipl-auction-websocket
-    env: node
-    region: singapore
-    plan: free
+    runtime: node
     buildCommand: npm install
     startCommand: node server/auction-room-server.js
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
