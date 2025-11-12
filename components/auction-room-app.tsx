@@ -51,10 +51,14 @@ export default function AuctionRoomApp() {
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           url = 'ws://localhost:8080'
           console.log('   ✅ Using local WebSocket:', url)
-        } 
-        // If accessing via ngrok (internet)
+        }
+        // If accessing via Render (production)
+        else if (hostname.includes('onrender.com')) {
+          url = process.env.NEXT_PUBLIC_WS_URL || 'wss://ipl-auction-websocket.onrender.com'
+          console.log('   ✅ Using Render WebSocket:', url)
+        }
+        // If accessing via ngrok (tunnel/testing)
         else if (hostname.includes('ngrok')) {
-          // Use the WebSocket ngrok tunnel
           url = 'wss://sheathier-achromatous-meredith.ngrok-free.dev'
           console.log('   ✅ Using ngrok WebSocket:', url)
         } 
@@ -216,13 +220,13 @@ export default function AuctionRoomApp() {
       )}
       
       {phase === "team-selection" && (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-4 sm:py-6 md:py-8 px-3 sm:px-4">
           <div className="max-w-7xl mx-auto">
             {/* Room Code Display */}
-            <div className="text-center mb-8">
-              <div className="inline-block bg-slate-800/50 border border-orange-500/50 rounded-xl px-6 py-3">
-                <p className="text-sm text-gray-400 mb-1">Room Code</p>
-                <p className="text-3xl font-black text-orange-400 tracking-widest">{roomCode}</p>
+            <div className="text-center mb-4 sm:mb-6 md:mb-8">
+              <div className="inline-block bg-slate-800/50 border border-orange-500/50 rounded-xl px-4 sm:px-6 py-2 sm:py-3">
+                <p className="text-xs sm:text-sm text-gray-400 mb-1">Room Code</p>
+                <p className="text-2xl sm:text-3xl font-black text-orange-400 tracking-widest">{roomCode}</p>
               </div>
             </div>
             

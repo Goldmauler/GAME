@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   title: "IPL Cricket Auction Game",
   description: "An interactive cricket auction game with team rating analysis and AI-powered insights",
   generator: "v0.app",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
   icons: {
     icon: [
       {

@@ -5,13 +5,15 @@ const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
 const fetch = require("node-fetch")
 const os = require("os")
 
-const PORT = process.env.AUCTION_PORT || 8080
+// Port configuration for both local and Render deployment
+const PORT = process.env.PORT || process.env.AUCTION_PORT || 8080
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000"
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 
-// Create HTTP server for ngrok compatibility
+// Create HTTP server for compatibility with Render and ngrok
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' })
-  res.end('IPL Auction WebSocket Server Running')
+  res.end('IPL Auction WebSocket Server Running\n')
 })
 
 const wss = new WebSocket.Server({ 
@@ -38,28 +40,35 @@ function getLocalIPs() {
 console.log(`\n🏏 IPL Auction Room Server Started Successfully!\n`)
 console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 console.log(`📡 WebSocket Server Running on Port: ${PORT}`)
+console.log(`🌍 Environment: ${IS_PRODUCTION ? 'PRODUCTION (Render)' : 'DEVELOPMENT'}`)
 console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
 
-console.log(`🌐 Access Points:\n`)
-console.log(`   Local Machine:`)
-console.log(`   └─ ws://localhost:${PORT}\n`)
-
-const localIPs = getLocalIPs()
-if (localIPs.length > 0) {
-  console.log(`   Other Devices on Network:`)
-  localIPs.forEach(ip => {
-    console.log(`   └─ ws://${ip}:${PORT}`)
-  })
-  console.log(`\n📱 Share this with other players:`)
-  console.log(`   Web App: http://${localIPs[0]}:3000`)
+if (IS_PRODUCTION) {
+  console.log(`🚀 Production Mode - Ready for Render deployment`)
+  console.log(`   WebSocket URL: wss://your-app.onrender.com`)
 } else {
-  console.log(`   ⚠️  No network interfaces found. Only accessible via localhost.`)
+  console.log(`🌐 Development Access Points:\n`)
+  console.log(`   Local Machine:`)
+  console.log(`   └─ ws://localhost:${PORT}\n`)
+
+  const localIPs = getLocalIPs()
+  if (localIPs.length > 0) {
+    console.log(`   Other Devices on Network:`)
+    localIPs.forEach(ip => {
+      console.log(`   └─ ws://${ip}:${PORT}`)
+    })
+    console.log(`\n📱 Share this with other players:`)
+    console.log(`   Web App: http://${localIPs[0]}:3000`)
+  } else {
+    console.log(`   ⚠️  No network interfaces found. Only accessible via localhost.`)
+  }
+
+  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+  console.log(`💡 Tip: Make sure Next.js dev server is running on port 3000`)
+  console.log(`    Run: npm run dev (in another terminal)`)
 }
 
-console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-console.log(`💡 Tip: Make sure Next.js dev server is running on port 3000`)
-console.log(`    Run: npm run dev (in another terminal)\n`)
-console.log(`🔥 Ready to accept connections!\n`)
+console.log(`\n🔥 Ready to accept connections!\n`)
 
 // Room management
 const rooms = new Map() // roomCode -> Room object

@@ -119,23 +119,23 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-4 sm:py-8 md:py-12 px-3 sm:px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="text-center mb-6 sm:mb-8 md:mb-12"
         >
-          <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-4">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-2 sm:mb-4 leading-tight">
             🏏 IPL AUCTION ROOMS
           </h1>
-          <p className="text-xl text-gray-300">Create or join a room to start your auction</p>
+          <p className="text-sm sm:text-lg md:text-xl text-gray-300 px-2">Create or join a room to start your auction</p>
           {!wsConnected && (
             <motion.div
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="mt-4 text-yellow-400 font-semibold"
+              className="mt-3 sm:mt-4 text-yellow-400 font-semibold text-sm sm:text-base"
             >
               ⚠️ Connecting to server...
             </motion.div>
@@ -150,33 +150,33 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="space-y-6"
+              className="space-y-4 sm:space-y-6"
             >
               {/* Name Input */}
-              <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-                <label className="block text-gray-300 mb-3 text-lg font-semibold">Your Name</label>
+              <div className="bg-slate-800/50 rounded-xl p-4 sm:p-6 border border-slate-700">
+                <label className="block text-gray-300 mb-2 sm:mb-3 text-base sm:text-lg font-semibold">Your Name</label>
                 <input
                   type="text"
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
                   placeholder="Enter your name..."
-                  className="w-full bg-slate-900 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-orange-500 focus:outline-none text-lg"
+                  className="w-full bg-slate-900 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg border border-slate-600 focus:border-orange-500 focus:outline-none text-base sm:text-lg"
                   maxLength={20}
                 />
               </div>
 
               {/* Menu Options */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 <motion.button
                   whileHover={{ scale: 1.05, y: -5 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setView("create")}
                   disabled={!wsConnected || !userName.trim()}
-                  className="bg-gradient-to-br from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl p-8 border-2 border-green-500/50 disabled:border-gray-600 transition-all"
+                  className="bg-gradient-to-br from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl p-6 sm:p-8 border-2 border-green-500/50 disabled:border-gray-600 transition-all"
                 >
-                  <div className="text-5xl mb-3">🎯</div>
-                  <h3 className="text-xl font-bold text-white mb-2">Create Room</h3>
-                  <p className="text-sm text-white/70">Start a new auction</p>
+                  <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🎯</div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-1 sm:mb-2">Create Room</h3>
+                  <p className="text-xs sm:text-sm text-white/70">Start a new auction</p>
                 </motion.button>
 
                 <motion.button
@@ -184,11 +184,11 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setView("join")}
                   disabled={!wsConnected || !userName.trim()}
-                  className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl p-8 border-2 border-blue-500/50 disabled:border-gray-600 transition-all"
+                  className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl p-6 sm:p-8 border-2 border-blue-500/50 disabled:border-gray-600 transition-all"
                 >
-                  <div className="text-5xl mb-3">🚪</div>
-                  <h3 className="text-xl font-bold text-white mb-2">Join Room</h3>
-                  <p className="text-sm text-white/70">Enter a room code</p>
+                  <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🚪</div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-1 sm:mb-2">Join Room</h3>
+                  <p className="text-xs sm:text-sm text-white/70">Enter a room code</p>
                 </motion.button>
 
                 <motion.button
@@ -196,11 +196,11 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                   whileTap={{ scale: 0.95 }}
                   onClick={handleBrowseRooms}
                   disabled={!wsConnected || !userName.trim()}
-                  className="bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl p-8 border-2 border-purple-500/50 disabled:border-gray-600 transition-all"
+                  className="bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-xl p-6 sm:p-8 border-2 border-purple-500/50 disabled:border-gray-600 transition-all sm:col-span-2 md:col-span-1"
                 >
-                  <div className="text-5xl mb-3">🔍</div>
-                  <h3 className="text-xl font-bold text-white mb-2">Browse Rooms</h3>
-                  <p className="text-sm text-white/70">See active rooms</p>
+                  <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🔍</div>
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-1 sm:mb-2">Browse Rooms</h3>
+                  <p className="text-xs sm:text-sm text-white/70">See active rooms</p>
                 </motion.button>
               </div>
             </motion.div>
@@ -213,25 +213,25 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="bg-slate-800/50 rounded-xl p-8 border border-slate-700"
+              className="bg-slate-800/50 rounded-xl p-4 sm:p-6 md:p-8 border border-slate-700"
             >
-              <h2 className="text-3xl font-bold text-white mb-6">🎯 Create New Room</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6">🎯 Create New Room</h2>
               
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-gray-300 mb-2">Host Name</label>
+                  <label className="block text-gray-300 mb-2 text-sm sm:text-base">Host Name</label>
                   <input
                     type="text"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
-                    className="w-full bg-slate-900 text-white px-4 py-3 rounded-lg border border-slate-600"
+                    className="w-full bg-slate-900 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg border border-slate-600 text-base"
                     disabled={isCreating}
                   />
                 </div>
 
-                <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
-                  <h3 className="font-semibold text-orange-400 mb-2">Room Settings</h3>
-                  <ul className="text-gray-300 space-y-1 text-sm">
+                <div className="bg-slate-900/50 rounded-lg p-3 sm:p-4 border border-slate-700">
+                  <h3 className="font-semibold text-orange-400 mb-2 text-sm sm:text-base">Room Settings</h3>
+                  <ul className="text-gray-300 space-y-1 text-xs sm:text-sm">
                     <li>✓ Maximum 10 players per room</li>
                     <li>✓ 100 players to auction</li>
                     <li>✓ AI teams fill remaining slots</li>
@@ -240,15 +240,15 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                 </div>
 
                 {error && (
-                  <div className="bg-red-900/30 border border-red-500 text-red-300 rounded-lg p-3">
+                  <div className="bg-red-900/30 border border-red-500 text-red-300 rounded-lg p-3 text-sm">
                     {error}
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={() => setView("menu")}
-                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-bold transition-all"
+                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-bold transition-all text-sm sm:text-base"
                     disabled={isCreating}
                   >
                     Back
@@ -256,7 +256,7 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                   <button
                     onClick={handleCreateRoom}
                     disabled={isCreating || !userName.trim()}
-                    className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 text-white px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
+                    className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed text-sm sm:text-base"
                   >
                     {isCreating ? "Creating..." : "Create Room 🚀"}
                   </button>
@@ -272,29 +272,29 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="bg-slate-800/50 rounded-xl p-8 border border-slate-700"
+              className="bg-slate-800/50 rounded-xl p-4 sm:p-6 md:p-8 border border-slate-700"
             >
-              <h2 className="text-3xl font-bold text-white mb-6">🚪 Join Room</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6">🚪 Join Room</h2>
               
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-gray-300 mb-2">Your Name</label>
+                  <label className="block text-gray-300 mb-2 text-sm sm:text-base">Your Name</label>
                   <input
                     type="text"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
-                    className="w-full bg-slate-900 text-white px-4 py-3 rounded-lg border border-slate-600"
+                    className="w-full bg-slate-900 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg border border-slate-600 text-base"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-gray-300 mb-2">Room Code</label>
+                  <label className="block text-gray-300 mb-2 text-sm sm:text-base">Room Code</label>
                   <input
                     type="text"
                     value={roomCode}
                     onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                     placeholder="Enter 6-character code..."
-                    className="w-full bg-slate-900 text-white px-4 py-3 rounded-lg border border-slate-600 uppercase tracking-widest text-2xl font-bold text-center"
+                    className="w-full bg-slate-900 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg border border-slate-600 uppercase tracking-widest text-xl sm:text-2xl font-bold text-center"
                     maxLength={6}
                   />
                 </div>
