@@ -12,8 +12,23 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 
 // Create HTTP server for compatibility with Render and ngrok
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' })
-  res.end('IPL Auction WebSocket Server Running\n')
+  // Health check endpoint for Render
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    })
+    res.end(JSON.stringify({
+      status: 'ok',
+      service: 'IPL Auction WebSocket Server',
+      timestamp: new Date().toISOString(),
+      activeRooms: rooms.size,
+      activeConnections: wss.clients.size
+    }))
+  } else {
+    res.writeHead(404, { 'Content-Type': 'text/plain' })
+    res.end('Not Found')
+  }
 })
 
 const wss = new WebSocket.Server({ 
@@ -1437,5 +1452,11 @@ setInterval(() => {
 
 // Start HTTP server
 server.listen(PORT, '0.0.0.0', () => {
-  console.log("✅ Room-based auction server ready!")
+  console.log(`\n✅ IPL Auction Server is LIVE!`)
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+  console.log(`🌐 HTTP Server: http://0.0.0.0:${PORT}`)
+  console.log(`🔌 WebSocket Server: ws://0.0.0.0:${PORT}`)
+  console.log(`💚 Health Check: http://0.0.0.0:${PORT}/health`)
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
+  console.log(`Server is ready to accept connections!`)
 })
