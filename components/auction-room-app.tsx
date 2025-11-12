@@ -44,37 +44,37 @@ export default function AuctionRoomApp() {
       if (typeof window !== 'undefined') {
         const hostname = window.location.hostname
         
-        console.log('🔍 Detecting WebSocket URL for rooms page...')
+        console.log('Detecting WebSocket URL for rooms page...')
         console.log('   Current hostname:', hostname)
         
         // If accessing via localhost
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           url = 'ws://localhost:8080'
-          console.log('   ✅ Using local WebSocket:', url)
+          console.log('   Using local WebSocket:', url)
         }
         // If accessing via Render (production)
         else if (hostname.includes('onrender.com')) {
           url = process.env.NEXT_PUBLIC_WS_URL || 'wss://ipl-auction-websocket.onrender.com'
-          console.log('   ✅ Using Render WebSocket:', url)
+          console.log('   Using Render WebSocket:', url)
         }
         // If accessing via ngrok (tunnel/testing)
         else if (hostname.includes('ngrok')) {
           url = 'wss://sheathier-achromatous-meredith.ngrok-free.dev'
-          console.log('   ✅ Using ngrok WebSocket:', url)
+          console.log('   Using ngrok WebSocket:', url)
         } 
         // If accessing via local network IP
         else {
           url = 'ws://192.168.56.1:8080'
-          console.log('   ✅ Using network WebSocket:', url)
+          console.log('   Using network WebSocket:', url)
         }
       }
       
-      console.log('🔌 Connecting to WebSocket:', url)
+      console.log('Connecting to WebSocket:', url)
       const ws = new WebSocket(url)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('✅ Connected to auction room server:', url)
+        console.log('Connected to auction room server:', url)
         setWsConnected(true)
       }
 

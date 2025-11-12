@@ -247,10 +247,10 @@ export default function AuctionArena({
                         title="Click to view player details"
                       >
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-9xl animate-pulse">🏏</div>
+                          <div className="text-9xl animate-pulse font-bold text-orange-500">★</div>
                         </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                        <div className="absolute bottom-4 right-4 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold">📊 View Details</div>
+                        <div className="absolute bottom-4 right-4 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold">View Details</div>
                       </div>
                       <div className="p-6 bg-slate-900">
                         <h2 className="text-3xl font-black text-white mb-2">{currentPlayer?.name}</h2>
@@ -278,7 +278,7 @@ export default function AuctionArena({
                             <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${highestBidderTeam.color}`}></div>
                             <span className="font-bold text-white">{highestBidderTeam.name}</span>
                             <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.5, repeat: Infinity }} className="text-orange-400 font-bold">
-                              🔴 LEADING
+                              LEADING
                             </motion.span>
                           </motion.div>
                         ) : (
@@ -311,7 +311,7 @@ export default function AuctionArena({
                         }}
                         className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-4 rounded-lg font-bold text-xl transition-all"
                       >
-                        Bid ₹{currentBid.currentPrice + 1}Cr 🔥
+                        Bid ₹{currentBid.currentPrice + 1}Cr
                       </button>
                     </div>
                   </div>
@@ -321,7 +321,7 @@ export default function AuctionArena({
               {/* Results */}
               {results && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-indigo-900/80 rounded-lg p-6 border border-indigo-500/30 mt-6 text-white">
-                  <h3 className="text-xl font-bold mb-4">🏆 Auction Results & Ratings</h3>
+                  <h3 className="text-xl font-bold mb-4">Auction Results & Ratings</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {results.ratings?.map((r: any) => {
                       const team = teams.find((t: Team) => t.id === r.teamId)

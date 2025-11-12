@@ -53,7 +53,7 @@ export default function TeamSelection({ teams, takenTeams = [], onTeamSelect }: 
           className="text-center mb-6 sm:mb-8 md:mb-12"
         >
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-2 sm:mb-4 leading-tight px-2">
-            🏏 IPL AUCTION 2025
+            IPL AUCTION 2025
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl text-gray-300 mb-1 sm:mb-2 px-2">Select Your Team</p>
           <p className="text-sm sm:text-base text-gray-400 px-4">Choose wisely - you cannot change teams once the auction begins!</p>
@@ -65,7 +65,7 @@ export default function TeamSelection({ teams, takenTeams = [], onTeamSelect }: 
               animate={{ opacity: 1, scale: 1 }}
               className="mt-3 sm:mt-4 bg-red-500/20 border-2 border-red-500 rounded-lg px-4 sm:px-6 py-2 sm:py-3 inline-block mx-2"
             >
-              <p className="text-red-400 font-bold text-sm sm:text-base">⚠️ {error}</p>
+              <p className="text-red-400 font-bold text-sm sm:text-base">{error}</p>
             </motion.div>
           )}
         </motion.div>
@@ -147,7 +147,7 @@ export default function TeamSelection({ teams, takenTeams = [], onTeamSelect }: 
                 : "bg-slate-700 text-slate-500 cursor-not-allowed"
             }`}
           >
-            {selectedTeam ? "START AUCTION 🚀" : "SELECT A TEAM FIRST"}
+            {selectedTeam ? "START AUCTION" : "SELECT A TEAM FIRST"}
           </button>
 
           {selectedTeam && (
@@ -156,7 +156,7 @@ export default function TeamSelection({ teams, takenTeams = [], onTeamSelect }: 
               animate={{ opacity: 1 }}
               className="mt-3 sm:mt-4 text-yellow-400 font-bold text-sm sm:text-base px-2"
             >
-              ⚠️ Team selection is final and cannot be changed!
+              Team selection is final and cannot be changed!
             </motion.p>
           )}
         </motion.div>

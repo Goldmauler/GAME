@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { Trophy, Home, RotateCcw } from "lucide-react"
+import { Trophy, Home } from "lucide-react"
+import MobileMenu from "./mobile-menu"
 
 interface HeaderProps {
   gamePhase: string
@@ -21,18 +22,21 @@ export default function Header({ gamePhase, onReset }: HeaderProps) {
     <motion.header
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className="sticky top-0 z-50 backdrop-blur-md bg-gradient-to-b from-slate-950/80 to-slate-950/0 border-b border-orange-500/20 py-4"
+      className="sticky top-0 z-50 backdrop-blur-md bg-gradient-to-b from-slate-950/80 to-slate-950/0 border-b border-orange-500/20 py-3 sm:py-4"
     >
-      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="text-3xl">🏏</div>
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+            <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
+          </div>
           <div>
-            <h1 className="font-black text-2xl text-orange-500">IPL AUCTION</h1>
-            <p className="text-xs text-gray-400">Franchise Building Game</p>
+            <h1 className="font-black text-lg sm:text-2xl text-orange-500">IPL AUCTION</h1>
+            <p className="text-xs text-gray-400 hidden sm:block">Franchise Building Game</p>
           </div>
         </div>
 
-        <div className="flex gap-4 items-center">
+        {/* Desktop Navigation */}
+        <div className="hidden lg:flex gap-4 items-center">
           {onReset && (
             <button
               onClick={onReset}
@@ -66,6 +70,9 @@ export default function Header({ gamePhase, onReset }: HeaderProps) {
             ))}
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        <MobileMenu onReset={onReset} />
       </div>
     </motion.header>
   )
