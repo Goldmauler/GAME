@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -25,6 +25,8 @@ interface Player {
   soldTo?: string
   soldPrice?: number
 }
+
+export default React.memo(MultiplayerAuctionArena)
 
 interface Team {
   id: string
@@ -60,7 +62,7 @@ interface MultiplayerAuctionArenaProps {
   onComplete: () => void
 }
 
-export default function MultiplayerAuctionArena({
+function MultiplayerAuctionArena({
   roomCode,
   localTeamId,
   userName,
@@ -177,91 +179,104 @@ export default function MultiplayerAuctionArena({
     }
   }, [currentPlayer?.name])
 
+  // Batch high-frequency auction-state updates to reduce re-renders
+  const pendingPayloadRef = useRef<any>(null)
+  const scheduledRef = useRef<boolean>(false)
+
   useEffect(() => {
     if (!wsRef.current || !wsConnected) return
+
+    const applyPayload = (payload: any) => {
+      const {
+        teams: updatedTeams,
+        currentPlayer: player,
+        currentPrice: price,
+        highestBidder: bidder,
+        bidHistory: history,
+        timeLeft: time,
+        playerIndex: idx,
+        totalPlayers: total,
+        currentRound: round,
+        maxRounds: rounds,
+        currentCategory: category,
+        categoryName: catName,
+        phase: auctionPhase,
+        breakType: bType,
+        breakTimeLeft: bTime,
+        breakMessage: bMsg,
+        strategicTimeouts: timeouts,
+        rtmAvailable: rtm,
+        totalPlayersSold: sold,
+        totalMoneySpent: spent,
+        unsoldPlayersCount: unsold
+      } = payload
+
+      if (updatedTeams) setTeams(updatedTeams)
+      if (player !== undefined) setCurrentPlayer(player)
+      if (price !== undefined) setCurrentPrice(price)
+      setHighestBidder(bidder || "")
+      if (history !== undefined) setBidHistory(history || [])
+      if (time !== undefined) setTimeLeft(time)
+      if (idx !== undefined) setPlayerIndex(idx)
+      if (total !== undefined) setTotalPlayers(total)
+
+      if (round !== undefined) setCurrentRound(round)
+      if (rounds !== undefined) setMaxRounds(rounds)
+      if (category !== undefined) setCurrentCategory(category)
+      if (catName !== undefined) setCategoryName(catName)
+      if (auctionPhase !== undefined) setPhase(auctionPhase)
+      if (bType !== undefined) setBreakType(bType)
+      if (bTime !== undefined) setBreakTimeLeft(bTime)
+      if (bMsg !== undefined) setBreakMessage(bMsg)
+      if (timeouts !== undefined) setStrategicTimeouts(timeouts)
+      if (rtm !== undefined) setRtmAvailable(rtm)
+      if (sold !== undefined) setTotalPlayersSold(sold)
+      if (spent !== undefined) setTotalMoneySpent(spent)
+      if (unsold !== undefined) setUnsoldPlayersCount(unsold)
+    }
+
+    const scheduleApply = () => {
+      if (scheduledRef.current) return
+      scheduledRef.current = true
+      // Use rAF to batch updates for the next paint. For slightly larger batching use setTimeout(..., 100)
+      requestAnimationFrame(() => {
+        scheduledRef.current = false
+        const payload = pendingPayloadRef.current
+        if (payload) applyPayload(payload)
+        pendingPayloadRef.current = null
+      })
+    }
 
     const handleMessage = (evt: MessageEvent) => {
       try {
         const msg = JSON.parse(evt.data)
 
-        // Handle auction state updates
+        // Batch auction-state messages
         if (msg.type === "auction-state") {
-          const { 
-            teams: updatedTeams, 
-            currentPlayer: player, 
-            currentPrice: price,
-            highestBidder: bidder, 
-            bidHistory: history, 
-            timeLeft: time, 
-            playerIndex: idx, 
-            totalPlayers: total,
-            // New fields
-            currentRound: round,
-            maxRounds: rounds,
-            currentCategory: category,
-            categoryName: catName,
-            phase: auctionPhase,
-            breakType: bType,
-            breakTimeLeft: bTime,
-            breakMessage: bMsg,
-            strategicTimeouts: timeouts,
-            rtmAvailable: rtm,
-            totalPlayersSold: sold,
-            totalMoneySpent: spent,
-            unsoldPlayersCount: unsold
-          } = msg.payload
-          
-          setTeams(updatedTeams)
-          setCurrentPlayer(player)
-          setCurrentPrice(price)
-          setHighestBidder(bidder || "")
-          setBidHistory(history || [])
-          setTimeLeft(time)
-          setPlayerIndex(idx)
-          setTotalPlayers(total)
-          
-          // Update new fields
-          if (round !== undefined) setCurrentRound(round)
-          if (rounds !== undefined) setMaxRounds(rounds)
-          if (category !== undefined) setCurrentCategory(category)
-          if (catName !== undefined) setCategoryName(catName)
-          if (auctionPhase !== undefined) setPhase(auctionPhase)
-          if (bType !== undefined) setBreakType(bType)
-          if (bTime !== undefined) setBreakTimeLeft(bTime)
-          if (bMsg !== undefined) setBreakMessage(bMsg)
-          if (timeouts !== undefined) setStrategicTimeouts(timeouts)
-          if (rtm !== undefined) setRtmAvailable(rtm)
-          if (sold !== undefined) setTotalPlayersSold(sold)
-          if (spent !== undefined) setTotalMoneySpent(spent)
-          if (unsold !== undefined) setUnsoldPlayersCount(unsold)
+          pendingPayloadRef.current = msg.payload
+          scheduleApply()
+          return
         }
 
-        // Handle player sold
+        // Handle player sold immediately (UI animation)
         if (msg.type === "player-sold") {
           const { player, soldToName, soldPrice } = msg.payload
           setSoldPlayerInfo({ name: player.name, team: soldToName, price: soldPrice })
           setShowSoldAnimation(true)
-          
+
           // Confetti if you won the bid!
           if (msg.payload.soldTo === localTeamId) {
-            confetti({
-              particleCount: 100,
-              spread: 70,
-              origin: { y: 0.6 }
-            })
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
           }
-          
-          // Hide animation after 3 seconds
-          setTimeout(() => {
-            setShowSoldAnimation(false)
-          }, 3000)
+
+          setTimeout(() => setShowSoldAnimation(false), 3000)
+          return
         }
 
-        // Handle auction complete
+        // Auction complete
         if (msg.type === "auction-complete") {
-          setTimeout(() => {
-            onComplete()
-          }, 2000)
+          setTimeout(() => onComplete(), 2000)
+          return
         }
       } catch (e) {
         console.error("Error parsing WebSocket message:", e)

@@ -1,10 +1,23 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import dynamic from "next/dynamic"
 import RoomLobby from "./room-lobby"
 import TeamSelection from "./team-selection"
 import WaitingLobby from "./waiting-lobby"
-import MultiplayerAuctionArena from "./multiplayer-auction-arena"
+
+// Lazy-load the heavy auction arena to reduce initial bundle size
+const MultiplayerAuctionArena = dynamic(
+  () => import("./multiplayer-auction-arena"),
+  { ssr: false, loading: () => (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-3" />
+        <p className="text-white">Loading auction...</p>
+      </div>
+    </div>
+  ) }
+)
 
 type AppPhase = "lobby" | "team-selection" | "waiting-lobby" | "auction"
 

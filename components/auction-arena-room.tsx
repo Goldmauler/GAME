@@ -14,6 +14,8 @@ interface Team {
   recentBids?: number
 }
 
+export default React.memo(AuctionArena)
+
 interface Player {
   id: string
   name: string
@@ -59,7 +61,7 @@ const TEAM_COLORS: Record<string, string> = {
   "10": "from-emerald-600 to-emerald-800",
 }
 
-export default function AuctionArena({
+function AuctionArena({
   roomCode,
   localTeamId,
   userName,
