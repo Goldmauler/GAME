@@ -1,12 +1,15 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown } from "lucide-react"
-import confetti from "canvas-confetti"
+
+// Lazy-load confetti to reduce initial bundle
+const confetti = dynamic(() => import("canvas-confetti").then(mod => mod.default), { ssr: false })
 
 interface Player {
   id: string
@@ -238,13 +241,22 @@ function MultiplayerAuctionArena({
     const scheduleApply = () => {
       if (scheduledRef.current) return
       scheduledRef.current = true
-      // Use rAF to batch updates for the next paint. For slightly larger batching use setTimeout(..., 100)
-      requestAnimationFrame(() => {
+      // For production with potentially slower connections, use 100ms batching
+      // This reduces state updates from ~60/sec to ~10/sec
+      const delay = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com') ? 100 : 0
+      
+      const callback = () => {
         scheduledRef.current = false
         const payload = pendingPayloadRef.current
         if (payload) applyPayload(payload)
         pendingPayloadRef.current = null
-      })
+      }
+      
+      if (delay > 0) {
+        setTimeout(callback, delay)
+      } else {
+        requestAnimationFrame(callback)
+      }
     }
 
     const handleMessage = (evt: MessageEvent) => {
@@ -264,8 +276,8 @@ function MultiplayerAuctionArena({
           setSoldPlayerInfo({ name: player.name, team: soldToName, price: soldPrice })
           setShowSoldAnimation(true)
 
-          // Confetti if you won the bid!
-          if (msg.payload.soldTo === localTeamId) {
+          // Confetti if you won the bid (lazy-loaded)
+          if (msg.payload.soldTo === localTeamId && confetti) {
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
           }
 

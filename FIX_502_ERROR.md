@@ -1,46 +1,54 @@
 # 502 Bad Gateway Fix - Troubleshooting Guide
 
 ## Problem
+
 Getting "502 Bad Gateway" error when accessing the Render deployment.
 
 ## Root Cause
+
 The WebSocket server wasn't properly responding to Render's health checks, causing Render to mark the service as unhealthy.
 
 ## Solutions Applied
 
 ### 1. ✅ Added Health Check Endpoint
+
 **File:** `server/auction-room-server.js`
 
 Added a proper HTTP health check endpoint:
+
 ```javascript
 const server = http.createServer((req, res) => {
-  if (req.url === '/health' || req.url === '/') {
-    res.writeHead(200, { 
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    })
-    res.end(JSON.stringify({
-      status: 'ok',
-      service: 'IPL Auction WebSocket Server',
-      timestamp: new Date().toISOString(),
-      activeRooms: rooms.size,
-      activeConnections: wss.clients.size
-    }))
+  if (req.url === "/health" || req.url === "/") {
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        service: "IPL Auction WebSocket Server",
+        timestamp: new Date().toISOString(),
+        activeRooms: rooms.size,
+        activeConnections: wss.clients.size,
+      })
+    );
   }
-})
+});
 ```
 
 ### 2. ✅ Updated Render Configuration
+
 **File:** `render.yaml`
 
 Added health check path and proper build command:
+
 ```yaml
 - type: web
   name: ipl-auction-websocket
   runtime: node
   buildCommand: npm install --legacy-peer-deps
   startCommand: node server/auction-room-server.js
-  healthCheckPath: /health  # ← THIS IS CRITICAL
+  healthCheckPath: /health # ← THIS IS CRITICAL
   envVars:
     - key: NODE_ENV
       value: production
@@ -49,11 +57,13 @@ Added health check path and proper build command:
 ```
 
 ### 3. ✅ Server Binding Verification
+
 Confirmed server is binding to `0.0.0.0:PORT`:
+
 ```javascript
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is LIVE on port ${PORT}`)
-})
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server is LIVE on port ${PORT}`);
+});
 ```
 
 ## Deployment Steps
@@ -61,11 +71,13 @@ server.listen(PORT, '0.0.0.0', () => {
 ### After Pushing Changes:
 
 1. **Check Render Dashboard**
+
    - Go to https://dashboard.render.com
    - Select your WebSocket service (`ipl-auction-websocket` or `game-websocket-7qw0`)
    - Monitor the "Logs" tab
 
 2. **Look for These Success Messages:**
+
    ```
    ✅ IPL Auction Server is LIVE!
    🌐 HTTP Server: http://0.0.0.0:10000
@@ -75,11 +87,13 @@ server.listen(PORT, '0.0.0.0', () => {
 
 3. **Test Health Check**
    Once deployed, visit:
+
    ```
    https://game-websocket-7qw0.onrender.com/health
    ```
-   
+
    You should see:
+
    ```json
    {
      "status": "ok",
@@ -98,6 +112,7 @@ server.listen(PORT, '0.0.0.0', () => {
 ## If 502 Persists
 
 ### Check 1: Render Service Status
+
 ```bash
 # In Render Dashboard → Service → Events
 # Look for:
@@ -106,6 +121,7 @@ server.listen(PORT, '0.0.0.0', () => {
 ```
 
 ### Check 2: Render Logs
+
 ```bash
 # In Render Dashboard → Service → Logs
 # Look for errors like:
@@ -115,26 +131,34 @@ server.listen(PORT, '0.0.0.0', () => {
 ```
 
 ### Check 3: Environment Variables
+
 Verify in Render Dashboard → Service → Environment:
+
 ```
 NODE_ENV = production
 PORT = (should be auto-set by Render)
 ```
 
 ### Check 4: Build Command
+
 Should be:
+
 ```
 npm install --legacy-peer-deps
 ```
 
 NOT:
+
 ```
 npm install --legacy-peer-deps && npm run build
 ```
+
 (WebSocket server doesn't need a build step)
 
 ### Check 5: Start Command
+
 Should be:
+
 ```
 node server/auction-room-server.js
 ```
@@ -142,22 +166,28 @@ node server/auction-room-server.js
 ## Common Errors and Fixes
 
 ### Error: "EADDRINUSE"
+
 **Cause:** Port conflict
 **Fix:** Restart the service in Render Dashboard
 
 ### Error: "Module not found: ws"
+
 **Cause:** Dependencies not installed
 **Fix:** Check `package.json` has `ws` in dependencies (not devDependencies)
 
 ### Error: "Health check timeout"
+
 **Cause:** Server takes too long to start
-**Fix:** 
+**Fix:**
+
 1. Reduce startup time
 2. Increase health check grace period in Render settings
 
 ### Error: "Cannot find module '../lib/fetch-players'"
+
 **Cause:** Build didn't copy all files
 **Fix:** Verify all files are committed to git:
+
 ```bash
 git add server/
 git add lib/
@@ -168,6 +198,7 @@ git push origin main
 ## Manual Verification Steps
 
 ### 1. Local Test
+
 ```bash
 # Terminal 1: Start WebSocket server
 cd "c:\Users\vimal\Desktop\GAME"
@@ -185,6 +216,7 @@ curl http://localhost:8080/health
 ```
 
 ### 2. Production Test (After Deploy)
+
 ```bash
 # Test health endpoint
 curl https://game-websocket-7qw0.onrender.com/health
@@ -204,15 +236,18 @@ wscat -c wss://game-websocket-7qw0.onrender.com
 ## Render Free Tier Limitations
 
 **Important:** Render free tier services:
+
 - Spin down after 15 minutes of inactivity
 - Take 30-60 seconds to wake up on first request
 - May show 502 during wake-up period
 
 **User Impact:**
+
 - First visitor may see "Connecting..." for 30-60 seconds
 - Subsequent visitors (within 15 min) connect instantly
 
 **Workaround:**
+
 - Ping the health endpoint every 10 minutes:
   ```bash
   # Set up a cron job or external uptime monitor

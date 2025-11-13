@@ -6,6 +6,17 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Optimize production builds
+  swcMinify: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? {
+      exclude: ["error", "warn"],
+    } : false,
+  },
+  // Enable experimental optimizations
+  experimental: {
+    optimizePackageImports: ['framer-motion', 'lucide-react', '@radix-ui/react-dialog'],
+  },
   // Allow all origins in development
   async headers() {
     return [

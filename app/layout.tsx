@@ -2,10 +2,20 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+// @ts-ignore: allow side-effect import of CSS without type declarations
 import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const geist = Geist({ 
+  subsets: ["latin"],
+  display: 'swap',
+  preload: true,
+})
+
+const geistMono = Geist_Mono({ 
+  subsets: ["latin"],
+  display: 'swap',
+  preload: false, // Secondary font, defer loading
+})
 
 export const metadata: Metadata = {
   title: "IPL Cricket Auction Game",
@@ -43,7 +53,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`font-sans antialiased`}>
+      <head>
+        {/* Preconnect to WebSocket server for faster connection */}
+        <link rel="preconnect" href="https://game-websocket-7qw0.onrender.com" />
+        <link rel="dns-prefetch" href="https://game-websocket-7qw0.onrender.com" />
+      </head>
+      <body className={`${geist.className} antialiased`}>
         {children}
         <Analytics />
       </body>
