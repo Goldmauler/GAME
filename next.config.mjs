@@ -6,8 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Optimize production builds
-  swcMinify: true,
+  // Optimize production builds (swcMinify is default in Next.js 13+, removed)
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? {
       exclude: ["error", "warn"],
