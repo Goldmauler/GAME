@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink } from "lucide-react"
+import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle } from "lucide-react"
+import SaleHistory from "./sale-history"
 
 interface Player {
   id: string
@@ -60,6 +61,7 @@ interface MultiplayerAuctionArenaProps {
   wsRef: React.MutableRefObject<WebSocket | null>
   wsConnected: boolean
   onComplete: () => void
+  isHost?: boolean
 }
 
 function MultiplayerAuctionArena({
@@ -69,6 +71,7 @@ function MultiplayerAuctionArena({
   wsRef,
   wsConnected,
   onComplete,
+  isHost: isHostProp = false,
 }: MultiplayerAuctionArenaProps) {
   const router = useRouter()
   const [teams, setTeams] = useState<Team[]>([])
@@ -101,6 +104,14 @@ function MultiplayerAuctionArena({
   const [totalPlayersSold, setTotalPlayersSold] = useState<number>(0)
   const [totalMoneySpent, setTotalMoneySpent] = useState<number>(0)
   const [unsoldPlayersCount, setUnsoldPlayersCount] = useState<number>(0)
+  const [saleHistory, setSaleHistory] = useState<any[]>([])
+  const [showSaleHistory, setShowSaleHistory] = useState(false)
+  const [isHost, setIsHost] = useState(isHostProp)
+  
+  // Update isHost when prop changes
+  useEffect(() => {
+    setIsHost(isHostProp)
+  }, [isHostProp])
 
   // Get local team info
   const localTeam = teams.find((t) => t.id === localTeamId)
@@ -209,7 +220,8 @@ function MultiplayerAuctionArena({
         rtmAvailable: rtm,
         totalPlayersSold: sold,
         totalMoneySpent: spent,
-        unsoldPlayersCount: unsold
+        unsoldPlayersCount: unsold,
+        saleHistory: history_sales
       } = payload
 
       if (updatedTeams) {
@@ -240,6 +252,7 @@ function MultiplayerAuctionArena({
       if (sold !== undefined) setTotalPlayersSold(sold)
       if (spent !== undefined) setTotalMoneySpent(spent)
       if (unsold !== undefined) setUnsoldPlayersCount(unsold)
+      if (history_sales !== undefined) setSaleHistory(history_sales || [])
     }
 
     const scheduleApply = () => {
@@ -332,6 +345,17 @@ function MultiplayerAuctionArena({
       type: "strategic-timeout",
       payload: {
         teamId: localTeamId,
+      },
+    }))
+  }
+  
+  const handleMarkUnsold = () => {
+    if (!wsRef.current || !wsConnected || phase !== 'active') return
+    
+    wsRef.current.send(JSON.stringify({
+      type: "mark-unsold",
+      payload: {
+        roomCode,
       },
     }))
   }
@@ -941,6 +965,30 @@ function MultiplayerAuctionArena({
                           Strategic Timeout ({strategicTimeouts[localTeamId]} left)
                         </Button>
                       )}
+                      
+                      {/* Mark Unsold Button - Host Only */}
+                      {isHost && phase === 'active' && (
+                        <Button
+                          onClick={handleMarkUnsold}
+                          variant="outline"
+                          size="sm"
+                          className="bg-red-900/30 border-red-500/50 text-red-400 hover:bg-red-900/50 hover:text-red-300"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Mark as Unsold
+                        </Button>
+                      )}
+                      
+                      {/* View Sale History Button */}
+                      <Button
+                        onClick={() => setShowSaleHistory(true)}
+                        variant="outline"
+                        size="sm"
+                        className="bg-blue-900/30 border-blue-500/50 text-blue-400 hover:bg-blue-900/50 hover:text-blue-300"
+                      >
+                        <History className="w-4 h-4 mr-2" />
+                        View Sale History ({saleHistory.length})
+                      </Button>
 
                       {canBid && (
                         <p className="text-xs text-center text-gray-500">
@@ -1367,6 +1415,13 @@ function MultiplayerAuctionArena({
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Sale History Modal */}
+      <SaleHistory
+        saleHistory={saleHistory}
+        isOpen={showSaleHistory}
+        onClose={() => setShowSaleHistory(false)}
+      />
 
       {/* Custom Scrollbar Styles */}
       <style jsx global>{`

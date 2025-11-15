@@ -242,6 +242,9 @@ class AuctionRoom {
       // Stats
       totalPlayersSold: 0,
       totalMoneySpent: 0,
+      
+      // Sale History - Track all player sales
+      saleHistory: [], // Array of {playerName, teamName, price, round, timestamp, status: 'sold'/'unsold'}
     }
     
     // Initialize strategic timeouts and RTM for all teams
@@ -536,6 +539,49 @@ class AuctionRoom {
 
     return true
   }
+  
+  markUnsold() {
+    // Mark current player as unsold and move to next player
+    const currentPlayer = this.players[this.auctionState.playerIndex]
+    
+    // Add to unsold list if in round 1
+    if (this.auctionState.currentRound === 1) {
+      this.auctionState.unsoldPlayers.push(currentPlayer)
+    }
+    
+    // Add to sale history as manually marked unsold
+    this.auctionState.saleHistory.push({
+      playerName: currentPlayer.name,
+      playerRole: currentPlayer.role,
+      teamName: null,
+      teamId: null,
+      price: null,
+      basePrice: currentPlayer.basePrice,
+      round: this.auctionState.currentRound,
+      category: this.auctionState.currentCategory,
+      timestamp: new Date().toISOString(),
+      status: 'unsold'
+    })
+    
+    // Reset bidding state
+    this.auctionState.highestBidder = null
+    this.auctionState.bidHistory = []
+    
+    // Move to next player
+    if (this.auctionState.playerIndex < this.players.length - 1) {
+      this.auctionState.playerIndex += 1
+      this.auctionState.currentPrice = this.players[this.auctionState.playerIndex].basePrice
+      this.auctionState.timeLeft = this.auctionState.currentRound === 1 ? 60 : 30
+    } else {
+      // Category complete
+      this.handleCategoryComplete()
+    }
+    
+    // Broadcast updated state
+    this.broadcastState()
+    
+    return true
+  }
 
   nextPlayer() {
     const currentPlayer = this.players[this.auctionState.playerIndex]
@@ -550,6 +596,20 @@ class AuctionRoom {
         // Update stats
         this.auctionState.totalPlayersSold += 1
         this.auctionState.totalMoneySpent += this.auctionState.currentPrice
+        
+        // Add to sale history
+        this.auctionState.saleHistory.push({
+          playerName: currentPlayer.name,
+          playerRole: currentPlayer.role,
+          teamName: team.name,
+          teamId: team.id,
+          price: this.auctionState.currentPrice,
+          basePrice: currentPlayer.basePrice,
+          round: this.auctionState.currentRound,
+          category: this.auctionState.currentCategory,
+          timestamp: new Date().toISOString(),
+          status: 'sold'
+        })
         
         // Broadcast player sold event
         const soldMessage = JSON.stringify({
@@ -576,10 +636,24 @@ class AuctionRoom {
         }
       }
     } else {
-      // Player unsold - add to unsold list
+      // Player unsold - add to unsold list and sale history
       if (this.auctionState.currentRound === 1) {
         this.auctionState.unsoldPlayers.push(currentPlayer)
       }
+      
+      // Add to sale history as unsold
+      this.auctionState.saleHistory.push({
+        playerName: currentPlayer.name,
+        playerRole: currentPlayer.role,
+        teamName: null,
+        teamId: null,
+        price: null,
+        basePrice: currentPlayer.basePrice,
+        round: this.auctionState.currentRound,
+        category: this.auctionState.currentCategory,
+        timestamp: new Date().toISOString(),
+        status: 'unsold'
+      })
     }
 
     // Move to next player or category
@@ -821,6 +895,7 @@ class AuctionRoom {
         totalPlayersSold: this.auctionState.totalPlayersSold,
         totalMoneySpent: this.auctionState.totalMoneySpent,
         unsoldPlayersCount: this.auctionState.unsoldPlayers.length,
+        saleHistory: this.auctionState.saleHistory, // Include sale history
       },
     })
 
@@ -1035,6 +1110,10 @@ function handleMessage(ws, msg) {
     
     case 'strategic-timeout':
       handleStrategicTimeout(ws, payload)
+      break
+    
+    case 'mark-unsold':
+      handleMarkUnsold(ws, payload)
       break
     
     case 'list-rooms':
@@ -1363,6 +1442,39 @@ function handleBid(ws, payload) {
   const success = room.placeBid(teamId, amount)
   if (success) {
     room.broadcastState()
+  }
+}
+
+function handleMarkUnsold(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+
+  // Only host can mark players as unsold
+  if (!client || !client.isHost) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Only the host can mark players as unsold' },
+    }))
+    return
+  }
+
+  // Can only mark unsold during active phase
+  if (room.auctionState.phase !== 'active') {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Can only mark players as unsold during active auction' },
+    }))
+    return
+  }
+
+  const success = room.markUnsold()
+  if (success) {
+    console.log(`Player marked as unsold by host in room ${roomCode}`)
   }
 }
 
