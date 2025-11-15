@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
-import { Trophy, Home, Menu, X } from "lucide-react"
+import { Trophy, Home, Menu, X, Users } from "lucide-react"
 
 interface MobileMenuProps {
   onReset?: () => void
@@ -73,6 +73,15 @@ export default function MobileMenu({ onReset }: MobileMenuProps) {
                       <span className="font-semibold">Back to Menu</span>
                     </button>
                   )}
+
+                  <Link
+                    href="/teams"
+                    onClick={toggleMenu}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all"
+                  >
+                    <Users className="h-5 w-5" />
+                    <span className="font-semibold">Teams</span>
+                  </Link>
 
                   <Link
                     href="/leaderboard"

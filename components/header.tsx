@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { Trophy, Home } from "lucide-react"
+import { Trophy, Home, Users } from "lucide-react"
 import MobileMenu from "./mobile-menu"
 
 interface HeaderProps {
@@ -46,6 +46,14 @@ export default function Header({ gamePhase, onReset }: HeaderProps) {
               <span className="text-sm font-semibold">Back to Menu</span>
             </button>
           )}
+          
+          <Link 
+            href="/teams"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all"
+          >
+            <Users className="h-4 w-4" />
+            <span className="text-sm font-semibold">Teams</span>
+          </Link>
           
           <Link 
             href="/leaderboard"

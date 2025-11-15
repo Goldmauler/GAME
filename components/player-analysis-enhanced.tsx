@@ -16,7 +16,7 @@ interface Player {
 }
 
 interface PlayerAnalysisEnhancedProps {
-  player: Player
+   player: Player
   onClose: () => void
 }
 

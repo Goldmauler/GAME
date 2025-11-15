@@ -1,15 +1,12 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown } from "lucide-react"
-
-// Lazy-load confetti to reduce initial bundle
-const confetti = dynamic(() => import("canvas-confetti").then(mod => mod.default), { ssr: false })
+import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink } from "lucide-react"
 
 interface Player {
   id: string
@@ -73,6 +70,7 @@ function MultiplayerAuctionArena({
   wsConnected,
   onComplete,
 }: MultiplayerAuctionArenaProps) {
+  const router = useRouter()
   const [teams, setTeams] = useState<Team[]>([])
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number>(0)
@@ -214,7 +212,13 @@ function MultiplayerAuctionArena({
         unsoldPlayersCount: unsold
       } = payload
 
-      if (updatedTeams) setTeams(updatedTeams)
+      if (updatedTeams) {
+        setTeams(updatedTeams)
+        // Store teams in sessionStorage for /teams page
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('auctionTeams', JSON.stringify(updatedTeams))
+        }
+      }
       if (player !== undefined) setCurrentPlayer(player)
       if (price !== undefined) setCurrentPrice(price)
       setHighestBidder(bidder || "")
@@ -277,8 +281,11 @@ function MultiplayerAuctionArena({
           setShowSoldAnimation(true)
 
           // Confetti if you won the bid (lazy-loaded)
-          if (msg.payload.soldTo === localTeamId && confetti) {
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+          if (msg.payload.soldTo === localTeamId) {
+            import("canvas-confetti").then(module => {
+              const confettiFunc = module.default
+              confettiFunc({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+            })
           }
 
           setTimeout(() => setShowSoldAnimation(false), 3000)
@@ -994,111 +1001,85 @@ function MultiplayerAuctionArena({
             </Card>
           </div>
 
-          {/* Right Panel - Teams Table */}
+          {/* Right Panel - Teams Overview */}
           <div className="space-y-3">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-orange-500" />
               Teams ({teams.filter(t => t.players.length > 0 || t.id === localTeamId).length})
             </h3>
             
-            {/* Compact Teams Table */}
-            <Card className="bg-slate-800/50 border-slate-700/50 overflow-hidden">
-              <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10">
-                    <tr className="border-b border-slate-700/50">
-                      <th className="text-left p-2 text-gray-400 text-xs font-semibold">Team</th>
-                      <th className="text-center p-2 text-gray-400 text-xs font-semibold w-16">Pls</th>
-                      <th className="text-right p-2 text-gray-400 text-xs font-semibold w-20">Budget</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teams
-                      .filter(team => team.players.length > 0 || team.id === localTeamId || team.id === highestBidder)
-                      .sort((a, b) => b.players.length - a.players.length)
-                      .map((team) => (
-                        <motion.tr
-                          key={team.id}
-                          onClick={() => {
-                            if (team.players.length > 0) {
-                              setSelectedTeam(team)
-                              setShowTeamModal(true)
-                            }
-                          }}
-                          whileHover={team.players.length > 0 ? { backgroundColor: "rgba(249, 115, 22, 0.1)" } : {}}
-                          className={`border-b border-slate-700/20 transition-all ${
-                            team.players.length > 0 ? 'cursor-pointer' : ''
-                          } ${
-                            team.id === localTeamId
-                              ? "bg-blue-600/10"
-                              : team.id === highestBidder
-                              ? "bg-orange-600/10"
-                              : ""
-                          }`}
-                        >
-                          <td className="p-2">
-                            <div className="flex flex-col">
-                              <p className="text-white font-semibold text-xs truncate max-w-[140px]">{team.name}</p>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                {team.id === localTeamId && (
-                                  <span className="text-blue-400 text-[9px] font-semibold">YOU</span>
-                                )}
-                                {team.id === highestBidder && (
-                                  <span className="text-orange-400 text-[9px] font-semibold animate-pulse">🔨 BIDDING</span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-2 text-center">
-                            <span className="text-white font-bold">{team.players.length}</span>
-                            <span className="text-gray-500 text-[9px]">/{team.maxPlayers}</span>
-                          </td>
-                          <td className="p-2 text-right">
-                            <span className="text-green-400 font-bold text-xs">₹{team.budget}</span>
-                          </td>
-                        </motion.tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              {teams.filter(team => team.players.length > 0 || team.id === localTeamId || team.id === highestBidder).length === 0 && (
-                <div className="p-6 text-center">
-                  <Users className="w-10 h-10 text-gray-600 mx-auto mb-2" />
-                  <p className="text-gray-400 text-xs">Waiting for teams...</p>
-                </div>
-              )}
-            </Card>
+            {/* View Teams Button */}
+            <Button
+              onClick={() => router.push('/teams')}
+              className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-6 text-base shadow-lg"
+            >
+              <ExternalLink className="w-5 h-5 mr-2" />
+              View All Teams & Squads
+            </Button>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Card className="bg-gradient-to-br from-purple-600/10 to-purple-800/10 border-purple-500/30 p-3">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-purple-400" />
-                  <div>
-                    <p className="text-gray-400 text-[10px]">Teams</p>
-                    <p className="text-white text-lg font-bold">
-                      {teams.filter(team => team.players.length > 0 || team.id === localTeamId).length}
-                    </p>
-                  </div>
+                <div className="text-center">
+                  <Users className="w-4 h-4 text-purple-400 mx-auto mb-1" />
+                  <p className="text-gray-400 text-[9px]">Teams</p>
+                  <p className="text-white text-lg font-bold">
+                    {teams.filter(team => team.players.length > 0 || team.id === localTeamId).length}
+                  </p>
                 </div>
               </Card>
               <Card className="bg-gradient-to-br from-orange-600/10 to-orange-800/10 border-orange-500/30 p-3">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-orange-400" />
-                  <div>
-                    <p className="text-gray-400 text-[10px]">Sold</p>
-                    <p className="text-white text-lg font-bold">
-                      {teams.reduce((sum, team) => sum + team.players.length, 0)}
-                    </p>
-                  </div>
+                <div className="text-center">
+                  <Trophy className="w-4 h-4 text-orange-400 mx-auto mb-1" />
+                  <p className="text-gray-400 text-[9px]">Players</p>
+                  <p className="text-white text-lg font-bold">
+                    {teams.reduce((sum, team) => sum + team.players.length, 0)}
+                  </p>
+                </div>
+              </Card>
+              <Card className="bg-gradient-to-br from-green-600/10 to-green-800/10 border-green-500/30 p-3">
+                <div className="text-center">
+                  <DollarSign className="w-4 h-4 text-green-400 mx-auto mb-1" />
+                  <p className="text-gray-400 text-[9px]">Spent</p>
+                  <p className="text-white text-lg font-bold">
+                    ₹{teams.reduce((sum, team) => sum + (100 - team.budget), 0).toFixed(0)}
+                  </p>
                 </div>
               </Card>
             </div>
 
+            {/* Your Team Status */}
+            {localTeam && (
+              <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-blue-400" />
+                    <p className="text-blue-400 font-semibold text-xs">Your Team</p>
+                  </div>
+                  {highestBidder === localTeamId && (
+                    <Badge className="bg-orange-500/20 text-orange-400 text-[9px] animate-pulse">
+                      🔨 BIDDING
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-white font-bold text-sm truncate mb-2">{localTeam.name}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-gray-400 text-[9px]">Players</p>
+                    <p className="text-white font-bold">{localTeam.players.length}/{localTeam.maxPlayers}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-[9px]">Budget</p>
+                    <p className="text-green-400 font-bold">₹{localTeam.budget}Cr</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {/* Hint */}
             <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg p-2">
-              <p className="text-gray-400 text-[10px] text-center">
-                Click team row to view squad
+              <p className="text-gray-400 text-[9px] text-center">
+                💡 Tap "View All Teams" button for complete squad details
               </p>
             </div>
           </div>
