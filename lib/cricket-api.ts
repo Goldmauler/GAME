@@ -97,7 +97,6 @@ const PLAYER_ID_MAP: { [key: string]: string } = {
   "Shubman Gill": "1098824",
   "Rashid Khan": "793463",
   "Mohammed Shami": "481896",
-  "Hardik Pandya": "625371",
   
   // Lucknow Super Giants
   "KL Rahul": "422108",

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, Medal, Award, TrendingUp, Users } from 'lucide-react'
+import { Trophy, Medal, Award, TrendingUp, Users, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface LeaderboardEntry {
@@ -20,6 +21,7 @@ interface LeaderboardEntry {
 }
 
 export default function LeaderboardPage() {
+  const router = useRouter()
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -67,6 +69,16 @@ export default function LeaderboardPage() {
 
   return (
     <div className="container mx-auto p-8">
+      {/* Back Button */}
+      <Button
+        onClick={() => router.back()}
+        variant="outline"
+        className="mb-6"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back
+      </Button>
+
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
           <Trophy className="h-10 w-10 text-yellow-500" />

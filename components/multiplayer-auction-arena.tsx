@@ -1,13 +1,16 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import dynamic from "next/dynamic"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle } from "lucide-react"
-import SaleHistory from "./sale-history"
+
+// Lazy-load heavy components only when needed
+const SaleHistory = dynamic(() => import("./sale-history"), { ssr: false })
 
 interface Player {
   id: string
@@ -44,16 +47,6 @@ interface BidHistoryItem {
   timestamp: number
 }
 
-interface PlayerInfo {
-  name: string
-  country: string
-  role: string
-  battingStyle?: string
-  bowlingStyle?: string
-  bio?: string
-  imageUrl?: string
-}
-
 interface MultiplayerAuctionArenaProps {
   roomCode: string
   localTeamId: string
@@ -84,9 +77,6 @@ function MultiplayerAuctionArena({
   const [totalPlayers, setTotalPlayers] = useState<number>(0)
   const [showSoldAnimation, setShowSoldAnimation] = useState(false)
   const [soldPlayerInfo, setSoldPlayerInfo] = useState<{ name: string; team: string; price: number } | null>(null)
-  const [playerInfo, setPlayerInfo] = useState<any>(null)
-  const [loadingPlayerInfo, setLoadingPlayerInfo] = useState(false)
-  const [showPlayerDetails, setShowPlayerDetails] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [showTeamModal, setShowTeamModal] = useState(false)
   
@@ -108,6 +98,13 @@ function MultiplayerAuctionArena({
   const [showSaleHistory, setShowSaleHistory] = useState(false)
   const [isHost, setIsHost] = useState(isHostProp)
   
+  // Reconnection state
+  const [isReconnecting, setIsReconnecting] = useState(false)
+  const [showReconnectPrompt, setShowReconnectPrompt] = useState(false)
+  const [reconnectAttempts, setReconnectAttempts] = useState(0)
+  const maxReconnectAttempts = 5
+  const reconnectIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  
   // Update isHost when prop changes
   useEffect(() => {
     setIsHost(isHostProp)
@@ -118,78 +115,14 @@ function MultiplayerAuctionArena({
   const highestBidderTeam = teams.find((t) => t.id === highestBidder)
   const isMyBid = highestBidder === localTeamId
   const canBid = localTeam && localTeam.budget >= (currentPrice + 1) && localTeam.players.length < localTeam.maxPlayers
-
-  // Fetch player info from Cricbuzz API
-  const fetchPlayerInfo = async (playerName: string) => {
-    setLoadingPlayerInfo(true)
-    try {
-      const apiKey = process.env.NEXT_PUBLIC_RAPIDAPI_KEY
-      const apiHost = process.env.NEXT_PUBLIC_API_HOST
-      
-      if (!apiKey || !apiHost) {
-        console.log("API credentials not configured")
-        setLoadingPlayerInfo(false)
-        return
-      }
-
-      // Search for player
-      const searchResponse = await fetch(
-        `https://cricbuzz-cricket.p.rapidapi.com/stats/v1/player/search?plrN=${encodeURIComponent(playerName)}`,
-        {
-          method: 'GET',
-          headers: {
-            'X-RapidAPI-Key': apiKey,
-            'X-RapidAPI-Host': apiHost,
-          },
-        }
-      )
-
-      if (searchResponse.ok) {
-        const searchData = await searchResponse.json()
-        if (searchData?.player && searchData.player.length > 0) {
-          const playerId = searchData.player[0].id
-          
-          // Get player details
-          const detailsResponse = await fetch(
-            `https://cricbuzz-cricket.p.rapidapi.com/stats/v1/player/${playerId}`,
-            {
-              method: 'GET',
-              headers: {
-                'X-RapidAPI-Key': apiKey,
-                'X-RapidAPI-Host': apiHost,
-              },
-            }
-          )
-
-          if (detailsResponse.ok) {
-            const detailsData = await detailsResponse.json()
-            setPlayerInfo({
-              name: detailsData.name || playerName,
-              country: detailsData.intlTeam || "India",
-              role: detailsData.role || "Player",
-              battingStyle: detailsData.bat || "",
-              bowlingStyle: detailsData.bowl || "",
-              bio: detailsData.bio || "",
-              imageUrl: detailsData.faceImageId 
-                ? `https://img1.hscicdn.com/image/upload/f_auto,t_ds_square_w_160,q_50/lsci/${detailsData.faceImageId}`
-                : undefined
-            })
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching player info:", error)
-    } finally {
-      setLoadingPlayerInfo(false)
+  
+  // Handler to view player details in new tab
+  const handleViewPlayerDetails = () => {
+    if (currentPlayer && typeof window !== 'undefined') {
+      sessionStorage.setItem('currentPlayer', JSON.stringify(currentPlayer))
+      window.open(`/player/${currentPlayer.id}`, '_blank')
     }
   }
-
-  // Fetch player info when current player changes
-  useEffect(() => {
-    if (currentPlayer) {
-      fetchPlayerInfo(currentPlayer.name)
-    }
-  }, [currentPlayer?.name])
 
   // Batch high-frequency auction-state updates to reduce re-renders
   const pendingPayloadRef = useRef<any>(null)
@@ -310,6 +243,30 @@ function MultiplayerAuctionArena({
           setTimeout(() => onComplete(), 2000)
           return
         }
+        
+        // Handle reconnection success
+        if (msg.type === "reconnected") {
+          console.log("✅ Successfully reconnected to room")
+          setIsReconnecting(false)
+          setShowReconnectPrompt(false)
+          setReconnectAttempts(0)
+          
+          // Apply the synced state
+          applyPayload(msg.payload)
+          return
+        }
+        
+        // Handle player disconnected
+        if (msg.type === "player_disconnected") {
+          console.log(`⚠️ ${msg.payload.userName} disconnected`)
+          return
+        }
+        
+        // Handle player reconnected
+        if (msg.type === "player_reconnected") {
+          console.log(`✅ ${msg.payload.userName} reconnected`)
+          return
+        }
       } catch (e) {
         console.error("Error parsing WebSocket message:", e)
       }
@@ -321,6 +278,81 @@ function MultiplayerAuctionArena({
       wsRef.current?.removeEventListener("message", handleMessage)
     }
   }, [wsRef, wsConnected, localTeamId, onComplete])
+  
+  // Store connection info in localStorage for reconnection
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const connectionInfo = {
+        roomCode,
+        userName,
+        userId: localTeamId,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('auctionConnection', JSON.stringify(connectionInfo))
+    }
+  }, [roomCode, userName, localTeamId])
+  
+  // Handle disconnection and attempt reconnection
+  useEffect(() => {
+    if (!wsConnected && !isReconnecting) {
+      console.log("⚠️ WebSocket disconnected, attempting reconnection...")
+      setShowReconnectPrompt(true)
+      attemptReconnect()
+    }
+  }, [wsConnected])
+  
+  const attemptReconnect = () => {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      console.log("❌ Max reconnection attempts reached")
+      setShowReconnectPrompt(false)
+      return
+    }
+    
+    setIsReconnecting(true)
+    setReconnectAttempts(prev => prev + 1)
+    
+    // Try to reconnect after a delay (exponential backoff)
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000)
+    
+    reconnectIntervalRef.current = setTimeout(() => {
+      console.log(`🔄 Reconnection attempt ${reconnectAttempts + 1}/${maxReconnectAttempts}`)
+      
+      // The parent component should handle WebSocket reconnection
+      // We just need to send the rejoin message when connection is restored
+      if (wsConnected && wsRef.current) {
+        const storedInfo = localStorage.getItem('auctionConnection')
+        if (storedInfo) {
+          const { roomCode: savedRoom, userName: savedName, userId: savedId } = JSON.parse(storedInfo)
+          
+          wsRef.current.send(JSON.stringify({
+            type: "join-room",
+            payload: {
+              roomCode: savedRoom,
+              userName: savedName,
+              userId: savedId,
+              isReconnecting: true
+            },
+          }))
+        }
+      } else {
+        attemptReconnect()
+      }
+    }, delay)
+  }
+  
+  const handleManualReconnect = () => {
+    setReconnectAttempts(0)
+    attemptReconnect()
+  }
+  
+  // Cleanup reconnection interval
+  useEffect(() => {
+    return () => {
+      if (reconnectIntervalRef.current) {
+        clearTimeout(reconnectIntervalRef.current)
+      }
+    }
+  }, [])
 
   const handleBid = () => {
     if (!canBid || !wsRef.current || !wsConnected) return
@@ -403,6 +435,36 @@ function MultiplayerAuctionArena({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-6 px-4">
+      {/* Reconnection Prompt */}
+      {showReconnectPrompt && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-orange-600/95 backdrop-blur-sm border-2 border-orange-400 rounded-xl px-6 py-4 shadow-2xl max-w-md"
+        >
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+            <div>
+              <p className="text-white font-bold">Connection Lost</p>
+              <p className="text-orange-100 text-sm">
+                {isReconnecting 
+                  ? `Reconnecting... (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`
+                  : "Trying to reconnect to the game..."
+                }
+              </p>
+            </div>
+            <Button
+              onClick={handleManualReconnect}
+              size="sm"
+              variant="outline"
+              className="ml-auto border-white text-white hover:bg-white/20"
+            >
+              Retry
+            </Button>
+          </div>
+        </motion.div>
+      )}
+      
       <div className="max-w-7xl mx-auto">
         {/* Header with User Team Info */}
         <div className="flex items-start justify-between mb-6">
@@ -648,228 +710,71 @@ function MultiplayerAuctionArena({
               </div>
             </Card>
 
-            {/* Current Player Card */}
+            {/* Current Player Card - Simplified */}
             <Card className="bg-gradient-to-br from-slate-800 via-slate-800/80 to-slate-900 border-2 border-orange-500/50 shadow-2xl shadow-orange-500/20">
               <div className="p-6">
-                <div className="flex items-start gap-6 mb-4">
-                  {/* Player Image */}
-                  {playerInfo?.imageUrl && (
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: "spring", duration: 0.6 }}
-                      className="flex-shrink-0"
-                    >
-                      <div className="w-32 h-32 rounded-xl overflow-hidden border-4 border-orange-500/50 shadow-lg">
-                        <img
-                          src={playerInfo.imageUrl}
-                          alt={currentPlayer.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none'
-                          }}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Player Info */}
-                  <div className="flex-1">
-                    <motion.h2
-                      initial={{ x: -20, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      className="text-4xl font-black text-white mb-3 bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent"
-                    >
-                      {currentPlayer.name}
-                    </motion.h2>
-                    
-                    <div className="flex flex-wrap items-center gap-2 mb-4">
-                      <Badge className={`${getRoleColor(currentPlayer.role)} border px-4 py-1.5 text-sm font-semibold`}>
-                        <span className="flex items-center gap-2">
-                          {getRoleIcon(currentPlayer.role)}
-                          {currentPlayer.role}
-                        </span>
-                      </Badge>
-                      <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-4 py-1.5">
-                        <span className="flex items-center gap-2">
-                          <Star className="w-4 h-4 fill-yellow-400" />
-                          Rating: {currentPlayer.rating}
-                        </span>
-                      </Badge>
-                      {playerInfo?.country && (
-                        <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-4 py-1.5">
-                          {playerInfo.country}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Toggle Details Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPlayerDetails(!showPlayerDetails)}
-                      className="bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white"
-                    >
-                      <Info className="w-4 h-4 mr-2" />
-                      {showPlayerDetails ? "Hide Details" : "Show Player Details"}
-                      <motion.div
-                        animate={{ rotate: showPlayerDetails ? 180 : 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="ml-2"
-                      >
-                        ▼
-                      </motion.div>
-                    </Button>
+                {/* Player Info - Compact */}
+                <div className="mb-4">
+                  <motion.h2
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    onClick={handleViewPlayerDetails}
+                    className="text-3xl sm:text-4xl font-black text-white mb-3 bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent cursor-pointer hover:from-orange-300 hover:to-red-400 transition-all flex items-center gap-2"
+                  >
+                    {currentPlayer.name}
+                    <Info className="w-6 h-6 text-orange-400 animate-pulse" />
+                  </motion.h2>
+                  
+                  <p className="text-xs text-gray-400 mb-3">👆 Click name for detailed stats</p>
+                  
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={`${getRoleColor(currentPlayer.role)} border px-4 py-1.5 text-sm font-semibold`}>
+                      <span className="flex items-center gap-2">
+                        {getRoleIcon(currentPlayer.role)}
+                        {currentPlayer.role}
+                      </span>
+                    </Badge>
+                    <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-4 py-1.5">
+                      <span className="flex items-center gap-2">
+                        <Star className="w-4 h-4 fill-yellow-400" />
+                        Rating: {currentPlayer.rating}
+                      </span>
+                    </Badge>
                   </div>
                 </div>
 
-                {/* Collapsible Player Details */}
-                <AnimatePresence>
-                  {showPlayerDetails && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="border-t border-slate-700/50 pt-6 mt-4 space-y-4">
-                        {/* Loading State */}
-                        {loadingPlayerInfo && (
-                          <div className="flex items-center justify-center gap-2 text-gray-400 py-8">
-                            <Activity className="w-5 h-5 animate-spin" />
-                            <span>Loading player details...</span>
-                          </div>
-                        )}
-
-                        {/* Player Info from API */}
-                        {playerInfo && !loadingPlayerInfo && (
-                          <div className="space-y-4">
-                            {/* Bio Section */}
-                            {playerInfo.bio && (
-                              <div className="bg-slate-900/50 rounded-lg p-4">
-                                <h4 className="text-orange-400 font-semibold mb-2 flex items-center gap-2">
-                                  <Info className="w-4 h-4" />
-                                  About
-                                </h4>
-                                <p className="text-gray-300 text-sm leading-relaxed">{playerInfo.bio}</p>
-                              </div>
-                            )}
-
-                            {/* Playing Style */}
-                            <div className="grid grid-cols-2 gap-4">
-                              {playerInfo.battingStyle && (
-                                <div className="bg-slate-900/50 rounded-lg p-4">
-                                  <div className="flex items-center gap-2 text-blue-400 mb-2">
-                                    <Target className="w-4 h-4" />
-                                    <span className="font-semibold text-sm">Batting Style</span>
-                                  </div>
-                                  <p className="text-white font-bold">{playerInfo.battingStyle}</p>
-                                </div>
-                              )}
-                              {playerInfo.bowlingStyle && (
-                                <div className="bg-slate-900/50 rounded-lg p-4">
-                                  <div className="flex items-center gap-2 text-red-400 mb-2">
-                                    <Zap className="w-4 h-4" />
-                                    <span className="font-semibold text-sm">Bowling Style</span>
-                                  </div>
-                                  <p className="text-white font-bold">{playerInfo.bowlingStyle}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Stats Grid - Enhanced like solo auction */}
-                        {currentPlayer.stats && (
-                          <div>
-                            <h4 className="text-orange-400 font-semibold mb-3 flex items-center gap-2">
-                              <TrendingUp className="w-4 h-4" />
-                              Career Statistics
-                            </h4>
-                            <div className="grid grid-cols-3 gap-3">
-                              <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                transition={{ delay: 0.1 }}
-                                className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-lg p-4 text-center"
-                              >
-                                <Users className="w-5 h-5 text-blue-400 mx-auto mb-2" />
-                                <p className="text-gray-400 text-xs mb-1">Matches</p>
-                                <p className="text-white text-2xl font-black">{currentPlayer.stats.matches || 0}</p>
-                              </motion.div>
-
-                              {currentPlayer.stats.runs !== undefined && (
-                                <motion.div
-                                  initial={{ scale: 0.9, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  transition={{ delay: 0.2 }}
-                                  className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-lg p-4 text-center"
-                                >
-                                  <Target className="w-5 h-5 text-green-400 mx-auto mb-2" />
-                                  <p className="text-gray-400 text-xs mb-1">Total Runs</p>
-                                  <p className="text-white text-2xl font-black">{currentPlayer.stats.runs}</p>
-                                </motion.div>
-                              )}
-
-                              {currentPlayer.stats.wickets !== undefined && (
-                                <motion.div
-                                  initial={{ scale: 0.9, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  transition={{ delay: 0.3 }}
-                                  className="bg-gradient-to-br from-red-600/20 to-red-800/20 border border-red-500/30 rounded-lg p-4 text-center"
-                                >
-                                  <Zap className="w-5 h-5 text-red-400 mx-auto mb-2" />
-                                  <p className="text-gray-400 text-xs mb-1">Wickets</p>
-                                  <p className="text-white text-2xl font-black">{currentPlayer.stats.wickets}</p>
-                                </motion.div>
-                              )}
-
-                              {currentPlayer.stats.average !== undefined && (
-                                <motion.div
-                                  initial={{ scale: 0.9, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  transition={{ delay: 0.4 }}
-                                  className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 border border-purple-500/30 rounded-lg p-4 text-center"
-                                >
-                                  <TrendingUp className="w-5 h-5 text-purple-400 mx-auto mb-2" />
-                                  <p className="text-gray-400 text-xs mb-1">Average</p>
-                                  <p className="text-white text-2xl font-black">{currentPlayer.stats.average}</p>
-                                </motion.div>
-                              )}
-
-                              {currentPlayer.stats.strikeRate !== undefined && (
-                                <motion.div
-                                  initial={{ scale: 0.9, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  transition={{ delay: 0.5 }}
-                                  className="bg-gradient-to-br from-orange-600/20 to-orange-800/20 border border-orange-500/30 rounded-lg p-4 text-center"
-                                >
-                                  <Zap className="w-5 h-5 text-orange-400 mx-auto mb-2" />
-                                  <p className="text-gray-400 text-xs mb-1">Strike Rate</p>
-                                  <p className="text-white text-2xl font-black">{currentPlayer.stats.strikeRate}</p>
-                                </motion.div>
-                              )}
-
-                              {currentPlayer.stats.economy !== undefined && (
-                                <motion.div
-                                  initial={{ scale: 0.9, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  transition={{ delay: 0.6 }}
-                                  className="bg-gradient-to-br from-cyan-600/20 to-cyan-800/20 border border-cyan-500/30 rounded-lg p-4 text-center"
-                                >
-                                  <Activity className="w-5 h-5 text-cyan-400 mx-auto mb-2" />
-                                  <p className="text-gray-400 text-xs mb-1">Economy</p>
-                                  <p className="text-white text-2xl font-black">{currentPlayer.stats.economy}</p>
-                                </motion.div>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                {/* Stats Grid - Quick Overview Only */}
+                {currentPlayer.stats && (
+                  <div>
+                    <h4 className="text-orange-400 font-semibold mb-3 flex items-center gap-2 text-sm">
+                      <TrendingUp className="w-4 h-4" />
+                      Quick Stats
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-lg p-3 text-center">
+                        <Users className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+                        <p className="text-gray-400 text-[10px] mb-1">Matches</p>
+                        <p className="text-white text-xl font-black">{currentPlayer.stats.matches || 0}</p>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+
+                      {currentPlayer.stats.runs !== undefined && (
+                        <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-lg p-3 text-center">
+                          <Target className="w-4 h-4 text-green-400 mx-auto mb-1" />
+                          <p className="text-gray-400 text-[10px] mb-1">Runs</p>
+                          <p className="text-white text-xl font-black">{currentPlayer.stats.runs}</p>
+                        </div>
+                      )}
+
+                      {currentPlayer.stats.wickets !== undefined && (
+                        <div className="bg-gradient-to-br from-red-600/20 to-red-800/20 border border-red-500/30 rounded-lg p-3 text-center">
+                          <Zap className="w-4 h-4 text-red-400 mx-auto mb-1" />
+                          <p className="text-gray-400 text-[10px] mb-1">Wickets</p>
+                          <p className="text-white text-xl font-black">{currentPlayer.stats.wickets}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Current Bid - Enhanced */}
                 <motion.div

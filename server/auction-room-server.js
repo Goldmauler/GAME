@@ -208,6 +208,10 @@ class AuctionRoom {
     this.minTeams = 2 // Minimum teams to start auction
     this.startCountdown = null // Countdown timer
     
+    // Reconnection support
+    this.disconnectedUsers = new Map() // userId -> {userName, teamId, disconnectTime, timeout}
+    this.reconnectionGracePeriod = 2 * 60 * 1000 // 2 minutes in milliseconds
+    
     // Enhanced auction state with realistic features
     this.auctionState = {
       playerIndex: 0,
@@ -282,7 +286,7 @@ class AuctionRoom {
     }
   }
 
-  addClient(ws, teamId, userName, userId) {
+  addClient(ws, teamId, userName, userId, isReconnecting = false) {
     const isHost = userId === this.hostId
     this.clients.set(ws, { teamId, userName, userId, isHost, ready: false })
     
@@ -291,10 +295,98 @@ class AuctionRoom {
       this.takenTeams.add(teamId)
     }
     
+    // If reconnecting, remove from disconnected users and clear timeout
+    if (isReconnecting && this.disconnectedUsers.has(userId)) {
+      const disconnectedUser = this.disconnectedUsers.get(userId)
+      if (disconnectedUser.timeout) {
+        clearTimeout(disconnectedUser.timeout)
+      }
+      this.disconnectedUsers.delete(userId)
+      console.log(`✅ ${userName} reconnected to room ${this.roomCode}`)
+      
+      // Notify others about reconnection
+      this.broadcastMessage({
+        type: 'player_reconnected',
+        payload: {
+          userName,
+          teamId,
+          message: `${userName} has reconnected`
+        }
+      })
+    }
+    
     // Check if minimum teams reached and host hasn't started yet
     if (this.auctionState.phase === 'lobby' && this.clients.size >= this.minTeams) {
       this.notifyReadyToStart()
     }
+  }
+
+  handleDisconnect(ws) {
+    const client = this.clients.get(ws)
+    if (!client) return
+
+    const { userId, userName, teamId } = client
+    
+    // Remove client from active connections
+    this.clients.delete(ws)
+    
+    // Store disconnected user info for reconnection
+    const timeout = setTimeout(() => {
+      // After grace period, remove team reservation
+      if (this.disconnectedUsers.has(userId)) {
+        console.log(`⏰ Grace period expired for ${userName} in room ${this.roomCode}`)
+        this.disconnectedUsers.delete(userId)
+        if (teamId) {
+          this.takenTeams.delete(teamId)
+        }
+        
+        // Notify others
+        this.broadcastMessage({
+          type: 'player_removed',
+          payload: {
+            userName,
+            teamId,
+            message: `${userName} failed to reconnect and was removed`
+          }
+        })
+      }
+    }, this.reconnectionGracePeriod)
+    
+    this.disconnectedUsers.set(userId, {
+      userName,
+      teamId,
+      disconnectTime: Date.now(),
+      timeout
+    })
+    
+    console.log(`⚠️ ${userName} disconnected from room ${this.roomCode}. Grace period: 2 minutes`)
+    
+    // Notify others about disconnection
+    this.broadcastMessage({
+      type: 'player_disconnected',
+      payload: {
+        userName,
+        teamId,
+        message: `${userName} disconnected. Waiting for reconnection...`
+      }
+    })
+  }
+
+  canUserReconnect(userId) {
+    return this.disconnectedUsers.has(userId)
+  }
+
+  getDisconnectedUserInfo(userId) {
+    return this.disconnectedUsers.get(userId)
+  }
+
+  broadcastMessage(messageObj) {
+    const message = JSON.stringify(messageObj)
+    this.clients.forEach((_, ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message)
+      }
+    })
   }
 
   notifyReadyToStart() {
@@ -585,6 +677,13 @@ class AuctionRoom {
 
   nextPlayer() {
     const currentPlayer = this.players[this.auctionState.playerIndex]
+    
+    // Check if currentPlayer exists
+    if (!currentPlayer) {
+      console.error('❌ No current player found at index:', this.auctionState.playerIndex)
+      this.endAuction()
+      return
+    }
     
     // Award player to highest bidder
     if (this.auctionState.highestBidder) {
@@ -1067,10 +1166,16 @@ wss.on("connection", (ws) => {
     if (roomCode) {
       const room = rooms.get(roomCode)
       if (room) {
-        const shouldDelete = room.removeClient(ws)
+        // Handle disconnection with grace period
+        room.handleDisconnect(ws)
         room.broadcastState()
         
-        if (shouldDelete) {
+        // Don't delete room immediately, wait for potential reconnection
+        // Room will only be deleted if it's truly empty (no active or disconnected users)
+        const hasActiveClients = room.clients.size > 0
+        const hasDisconnectedUsers = room.disconnectedUsers.size > 0
+        
+        if (!hasActiveClients && !hasDisconnectedUsers) {
           rooms.delete(roomCode)
           console.log(`Room ${roomCode} deleted (empty)`)
         }
@@ -1165,7 +1270,7 @@ function handleCreateRoom(ws, payload) {
 }
 
 function handleJoinRoom(ws, payload) {
-  const { roomCode, userName, userId } = payload
+  const { roomCode, userName, userId, isReconnecting } = payload
 
   const room = rooms.get(roomCode)
   if (!room) {
@@ -1173,6 +1278,39 @@ function handleJoinRoom(ws, payload) {
       type: 'error',
       payload: { message: 'Room not found' },
     }))
+    return
+  }
+
+  // Check if this is a reconnection attempt
+  if (isReconnecting && userId && room.canUserReconnect(userId)) {
+    const disconnectedUser = room.getDisconnectedUserInfo(userId)
+    
+    // Restore user's previous state
+    room.addClient(ws, disconnectedUser.teamId, userName, userId, true)
+    clientRooms.set(ws, roomCode)
+    
+    console.log(`🔄 ${userName} reconnecting to room ${roomCode}`)
+    
+    // Send full room state for sync
+    ws.send(JSON.stringify({
+      type: 'reconnected',
+      payload: {
+        roomCode,
+        userId,
+        teamId: disconnectedUser.teamId,
+        roomInfo: room.getRoomInfo(),
+        availableTeams: room.teams,
+        isHost: userId === room.hostId,
+        takenTeams: Array.from(room.takenTeams),
+        auctionState: room.auctionState,
+        currentPlayer: room.players[room.auctionState.playerIndex],
+        message: 'Successfully reconnected! Syncing game state...'
+      },
+    }))
+    
+    // Broadcast updated state to all clients
+    room.broadcastState()
+    room.broadcastLobbyUpdate()
     return
   }
 
@@ -1207,16 +1345,16 @@ function handleJoinRoom(ws, payload) {
     return
   }
 
-  if (room.auctionState.phase !== 'lobby') {
+  if (room.auctionState.phase !== 'lobby' && !isReconnecting) {
     ws.send(JSON.stringify({
       type: 'error',
-      payload: { message: 'Auction already in progress' },
+      payload: { message: 'Auction already in progress. Please rejoin if you were disconnected.' },
     }))
     return
   }
 
   const playerId = userId || `player-${Date.now()}`
-  room.addClient(ws, null, userName || 'Player', playerId)
+  room.addClient(ws, null, userName || 'Player', playerId, false)
   clientRooms.set(ws, roomCode)
 
   console.log(`${userName} joined room ${roomCode}`)

@@ -33,7 +33,10 @@ export default function TeamsPage() {
     const storedTeams = sessionStorage.getItem('auctionTeams')
     if (storedTeams) {
       try {
-        setTeams(JSON.parse(storedTeams))
+        const allTeams = JSON.parse(storedTeams)
+        // Filter to show only teams that have players (active teams)
+        const activeTeams = allTeams.filter((team: Team) => team.players && team.players.length > 0)
+        setTeams(activeTeams)
       } catch (e) {
         console.error('Error parsing teams:', e)
       }

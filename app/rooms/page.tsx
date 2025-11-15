@@ -1,11 +1,15 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
 import AuctionRoomApp from "@/components/auction-room-app"
 import Header from "@/components/header"
 
 export default function RoomPage() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
 
   // Generate particles positions once on client side
@@ -103,6 +107,18 @@ export default function RoomPage() {
         transition={{ duration: 0.5 }}
         className="relative z-10"
       >
+        {/* Back Button */}
+        <div className="container mx-auto px-4 pt-6">
+          <Button
+            onClick={() => router.back()}
+            variant="outline"
+            className="mb-4 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+        </div>
+        
         <AuctionRoomApp />
       </motion.main>
     </div>
