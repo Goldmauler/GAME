@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import AuctionArena from "@/components/auction-arena"
 import TeamShowcase from "@/components/team-showcase"
@@ -186,13 +187,48 @@ export default function Home() {
 }
 
 function LobbyScreen({ onStart, onNewGame }: { onStart: () => void; onNewGame: () => void }) {
+  const router = useRouter()
   const [hasSavedGame, setHasSavedGame] = useState(false)
+  const [hasRoomConnection, setHasRoomConnection] = useState(false)
+  const [roomInfo, setRoomInfo] = useState<{ roomCode: string; userName: string; timestamp: number } | null>(null)
   
   useEffect(() => {
     // Check if there's a saved game
     const savedState = sessionStorage.getItem('auctionState')
     setHasSavedGame(!!savedState)
+    
+    // Check if there's a stored room connection
+    const storedConnection = localStorage.getItem('auctionConnection')
+    if (storedConnection) {
+      try {
+        const connectionInfo = JSON.parse(storedConnection)
+        const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
+        // Only show rejoin if less than 2 minutes have passed
+        if (timeSinceDisconnect < 2 * 60 * 1000) {
+          setHasRoomConnection(true)
+          setRoomInfo(connectionInfo)
+        } else {
+          // Clear old connection data
+          localStorage.removeItem('auctionConnection')
+        }
+      } catch (e) {
+        console.error('Error parsing connection info:', e)
+      }
+    }
   }, [])
+  
+  const handleRejoinRoom = () => {
+    if (roomInfo) {
+      // Navigate to room with the stored room code
+      router.push(`/room/${roomInfo.roomCode}`)
+    }
+  }
+  
+  const handleClearRoomConnection = () => {
+    localStorage.removeItem('auctionConnection')
+    setHasRoomConnection(false)
+    setRoomInfo(null)
+  }
   
   return (
     <motion.div
@@ -271,6 +307,54 @@ function LobbyScreen({ onStart, onNewGame }: { onStart: () => void; onNewGame: (
         </div>
 
         <div className="space-y-4">
+          {/* Rejoin Previous Room Alert */}
+          {hasRoomConnection && roomInfo && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 200 }}
+              className="bg-orange-500/20 border-2 border-orange-500/50 rounded-xl p-5 mb-4 backdrop-blur-sm shadow-2xl"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-orange-400 font-bold text-lg mb-1 flex items-center gap-2">
+                    <span className="animate-pulse">🔄</span> Room Connection Found!
+                  </p>
+                  <p className="text-orange-200 text-sm mb-1">
+                    Room: <span className="font-mono font-bold">{roomInfo.roomCode}</span>
+                  </p>
+                  <p className="text-orange-200 text-sm mb-3">
+                    User: <span className="font-semibold">{roomInfo.userName}</span>
+                  </p>
+                  <p className="text-orange-300/80 text-xs">
+                    You can rejoin this room within 2 minutes of disconnect
+                  </p>
+                </div>
+                <button
+                  onClick={handleClearRoomConnection}
+                  className="text-orange-400 hover:text-orange-300 transition-colors"
+                  title="Dismiss"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <motion.button
+                onClick={handleRejoinRoom}
+                whileHover={{
+                  scale: 1.02,
+                  boxShadow: "0 10px 30px rgba(251, 146, 60, 0.4)",
+                }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full mt-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <span className="text-xl">🚀</span>
+                REJOIN ROOM {roomInfo.roomCode}
+              </motion.button>
+            </motion.div>
+          )}
+          
           {hasSavedGame && (
             <motion.div
               initial={{ opacity: 0, y: -10, scale: 0.9 }}
