@@ -96,6 +96,22 @@ export default function RoomPage() {
     if (savedName) {
       setUserName(savedName)
     }
+    
+    // Check for stored connection info for auto-rejoin
+    const storedConnection = localStorage.getItem('auctionConnection')
+    if (storedConnection) {
+      try {
+        const connectionInfo = JSON.parse(storedConnection)
+        // If this is the same room, prepare for reconnection
+        if (connectionInfo.roomCode === roomCode) {
+          console.log('🔄 Found stored connection for this room, preparing to rejoin...')
+          setUserName(connectionInfo.userName)
+          // Auto-join will be triggered after WebSocket connects
+        }
+      } catch (e) {
+        console.error('Error parsing connection info:', e)
+      }
+    }
   }, [])
 
   // Connect to WebSocket
@@ -150,6 +166,33 @@ export default function RoomPage() {
         console.log('Connected to auction server')
         setConnected(true)
         setReconnecting(false)
+        
+        // Check if we should auto-rejoin
+        const storedConnection = localStorage.getItem('auctionConnection')
+        if (storedConnection && userName) {
+          try {
+            const connectionInfo = JSON.parse(storedConnection)
+            const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
+            
+            // If same room and within 2 minutes, auto-rejoin
+            if (connectionInfo.roomCode === roomCode && timeSinceDisconnect < 2 * 60 * 1000) {
+              console.log('🔄 Auto-rejoining room...')
+              setTimeout(() => {
+                ws.send(JSON.stringify({
+                  type: 'join-room',
+                  payload: {
+                    roomCode,
+                    userName: connectionInfo.userName,
+                    userId: connectionInfo.userId,
+                    isReconnecting: true
+                  },
+                }))
+              }, 500) // Small delay to ensure connection is stable
+            }
+          } catch (e) {
+            console.error('Error during auto-rejoin:', e)
+          }
+        }
       }
 
       ws.onmessage = (event) => {
@@ -204,6 +247,34 @@ export default function RoomPage() {
         toast({
           title: 'Joined Room',
           description: `Welcome to room ${roomCode}!`,
+        })
+        break
+        
+      case 'reconnected':
+        console.log('✅ Successfully reconnected!')
+        setHasJoined(true)
+        setRoomState(msg.payload.roomInfo)
+        setTeams(msg.payload.availableTeams || [])
+        setIsHost(msg.payload.isHost || false)
+        setSelectedTeamId(msg.payload.teamId || '')
+        setInWaitingLobby(!!msg.payload.teamId)
+        
+        // Restore auction state if active
+        if (msg.payload.auctionState) {
+          setAuctionState(msg.payload.auctionState)
+          if (msg.payload.currentPlayer) {
+            setCurrentPlayer(msg.payload.currentPlayer)
+          }
+        }
+        
+        // Store joined players list
+        if (msg.payload.roomInfo.players) {
+          setJoinedPlayers(msg.payload.roomInfo.players)
+        }
+        
+        toast({
+          title: 'Reconnected!',
+          description: msg.payload.message || 'Successfully rejoined the room',
         })
         break
 
@@ -290,6 +361,29 @@ export default function RoomPage() {
           variant: 'destructive',
         })
         break
+        
+      case 'player_disconnected':
+        toast({
+          title: 'Player Disconnected',
+          description: msg.payload.message,
+          variant: 'default',
+        })
+        break
+        
+      case 'player_reconnected':
+        toast({
+          title: 'Player Reconnected',
+          description: msg.payload.message,
+        })
+        break
+        
+      case 'player_removed':
+        toast({
+          title: 'Player Removed',
+          description: msg.payload.message,
+          variant: 'destructive',
+        })
+        break
     }
   }
 
@@ -306,12 +400,34 @@ export default function RoomPage() {
     localStorage.setItem('userName', userName)
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Check if this is a reconnection attempt
+      const storedConnection = localStorage.getItem('auctionConnection')
+      let isReconnecting = false
+      
+      if (storedConnection) {
+        try {
+          const connectionInfo = JSON.parse(storedConnection)
+          const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
+          
+          // If same room and within 2 minutes, this is a reconnection
+          if (connectionInfo.roomCode === roomCode && 
+              connectionInfo.userId === userId &&
+              timeSinceDisconnect < 2 * 60 * 1000) {
+            isReconnecting = true
+            console.log('🔄 Rejoining room with reconnection flag')
+          }
+        } catch (e) {
+          console.error('Error checking reconnection status:', e)
+        }
+      }
+      
       wsRef.current.send(JSON.stringify({
         type: 'join-room',
         payload: {
           roomCode,
           userName,
           userId,
+          isReconnecting
         },
       }))
     }
