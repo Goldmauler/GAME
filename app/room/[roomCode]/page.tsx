@@ -85,7 +85,25 @@ export default function RoomPage() {
 
   // Generate or retrieve userId
   useEffect(() => {
-    let id = localStorage.getItem('userId')
+    // First check if there's a stored connection with userId
+    const storedConnection = localStorage.getItem('auctionConnection')
+    let connectionUserId: string | null = null
+    
+    if (storedConnection) {
+      try {
+        const connectionInfo = JSON.parse(storedConnection)
+        if (connectionInfo.roomCode === roomCode) {
+          // Use the same userId from the connection
+          connectionUserId = connectionInfo.userId
+          console.log('🔄 Using stored userId for reconnection:', connectionUserId)
+        }
+      } catch (e) {
+        console.error('Error parsing connection info:', e)
+      }
+    }
+    
+    // Use stored connection userId, or fall back to localStorage userId, or generate new one
+    let id = connectionUserId || localStorage.getItem('userId')
     if (!id) {
       id = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       localStorage.setItem('userId', id)
@@ -98,7 +116,6 @@ export default function RoomPage() {
     }
     
     // Check for stored connection info for auto-rejoin
-    const storedConnection = localStorage.getItem('auctionConnection')
     if (storedConnection) {
       try {
         const connectionInfo = JSON.parse(storedConnection)
@@ -112,7 +129,7 @@ export default function RoomPage() {
         console.error('Error parsing connection info:', e)
       }
     }
-  }, [])
+  }, [roomCode])
 
   // Connect to WebSocket
   useEffect(() => {
@@ -177,17 +194,33 @@ export default function RoomPage() {
             // If same room and within 2 minutes, auto-rejoin
             if (connectionInfo.roomCode === roomCode && timeSinceDisconnect < 2 * 60 * 1000) {
               console.log('🔄 Auto-rejoining room...')
+              console.log('   Room Code:', connectionInfo.roomCode)
+              console.log('   User Name:', connectionInfo.userName)
+              console.log('   User ID:', connectionInfo.userId)
+              console.log('   Time Since Disconnect:', Math.floor(timeSinceDisconnect / 1000), 'seconds')
+              
               setTimeout(() => {
-                ws.send(JSON.stringify({
-                  type: 'join-room',
-                  payload: {
-                    roomCode,
-                    userName: connectionInfo.userName,
-                    userId: connectionInfo.userId,
-                    isReconnecting: true
-                  },
-                }))
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    type: 'join-room',
+                    payload: {
+                      roomCode: connectionInfo.roomCode,
+                      userName: connectionInfo.userName,
+                      userId: connectionInfo.userId,
+                      isReconnecting: true
+                    },
+                  }))
+                  console.log('✅ Sent auto-rejoin request')
+                }
               }, 500) // Small delay to ensure connection is stable
+            } else {
+              console.log('❌ Cannot auto-rejoin:')
+              if (connectionInfo.roomCode !== roomCode) {
+                console.log('   Different room:', connectionInfo.roomCode, 'vs', roomCode)
+              }
+              if (timeSinceDisconnect >= 2 * 60 * 1000) {
+                console.log('   Grace period expired:', Math.floor(timeSinceDisconnect / 1000), 'seconds')
+              }
             }
           } catch (e) {
             console.error('Error during auto-rejoin:', e)

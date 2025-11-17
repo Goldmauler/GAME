@@ -509,20 +509,6 @@ class AuctionRoom {
     })
   }
 
-  removeClient(ws) {
-    const client = this.clients.get(ws)
-    if (client) {
-      this.takenTeams.delete(client.teamId)
-      this.clients.delete(ws)
-    }
-    
-    // If no clients left, mark for cleanup
-    if (this.clients.size === 0 && this.auctionState.phase !== 'active') {
-      return true // Room can be deleted
-    }
-    return false
-  }
-
   startAuction() {
     if (this.auctionState.phase === 'lobby' || this.auctionState.phase === 'countdown') {
       // Auto-assign teams to players who haven't selected one
@@ -1669,12 +1655,17 @@ function handleLeaveRoom(ws) {
 
   const room = rooms.get(roomCode)
   if (room) {
-    const shouldDelete = room.removeClient(ws)
+    // Use handleDisconnect for graceful disconnection with reconnection grace period
+    room.handleDisconnect(ws)
     room.broadcastState()
     
-    if (shouldDelete) {
+    // Check if room should be deleted
+    const hasActiveClients = room.clients.size > 0
+    const hasDisconnectedUsers = room.disconnectedUsers.size > 0
+    
+    if (!hasActiveClients && !hasDisconnectedUsers) {
       rooms.delete(roomCode)
-      console.log(`Room ${roomCode} deleted`)
+      console.log(`Room ${roomCode} deleted (empty)`)
     }
   }
   
