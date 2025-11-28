@@ -6,32 +6,135 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-// Auction Room Model
+// ==========================================
+// PLAYER MASTER DATA (from Cricbuzz API)
+// ==========================================
+model Player {
+  id            String   @id @default(cuid())
+  cricbuzzId    String?
+  name          String   @unique
+  role          String   // BATSMAN, BOWLER, ALL_ROUNDER, WICKET_KEEPER
+  country       String   @default("India")
+  basePrice     Float    // in lakhs (₹)
+  imageUrl      String?
+  stats         Json?    // Store batting/bowling stats
+  isSold        Boolean  @default(false)
+  currentPrice  Float?   // Sold price if sold
+  teamName      String?  // Team that bought the player
+  
+  // Auction history
+  purchases     PlayerPurchase[]
+  bids          BidHistory[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([role])
+  @@index([name])
+  @@index([isSold])
+  @@index([cricbuzzId])
+}
+
+// ==========================================
+// AUCTION ROOM WITH ENHANCED STATE
+// ==========================================
 model AuctionRoom {
-  id          String   @id @default(cuid())
-  roomCode    String   @unique
-  hostName    String
-  hostId      String
-  status      String   @default("lobby") // lobby, countdown, active, completed
-  teams       Json     // Store all team data as JSON
-  players     Json     // Store all players as JSON
-  playerIndex Int      @default(0)
-  startTime   DateTime?
-  endTime     DateTime?
-  minTeams    Int      @default(2)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(cuid())
+  roomCode         String   @unique
+  hostName         String
+  hostId           String
+  status           String   @default("lobby") // lobby, countdown, active, paused, completed
+  
+  // Auction Configuration
+  minTeams         Int      @default(2)
+  maxTeams         Int      @default(8)
+  teamBudget       Float    @default(10000) // ₹100 crore in lakhs
+  minSquadSize     Int      @default(18)
+  maxSquadSize     Int      @default(25)
+  bidIncrement     Float    @default(10) // ₹10 lakhs
+  bidTimer         Int      @default(30) // seconds
+  
+  // Current Auction State
+  currentPlayerId  String?
+  currentBid       Float?
+  currentBidder    String?  // teamId
+  bidCount         Int      @default(0) // For "going once, twice, sold"
+  playerIndex      Int      @default(0)
+  turnTimerStart   DateTime?
+  
+  // Teams and Players (JSON for flexibility)
+  teams            Json     // Array of team objects with budgets, rosters, RTM cards
+  availablePlayers Json     // Array of player IDs still in auction pool
+  soldPlayers      Json     // Array of sold player IDs
+  unsoldPlayers    Json     // Array of unsold player IDs that can return
+  
+  // Session Management
+  sessionState     Json?    // Full auction state snapshot for recovery
+  
+  startTime        DateTime?
+  endTime          DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   
   // Relations
-  leaderboard LeaderboardEntry[]
+  leaderboard      LeaderboardEntry[]
+  userSessions     UserSession[]
+  bidHistory       BidHistory[]
   
   @@index([roomCode])
   @@index([status])
   @@index([createdAt])
+}
+
+// ==========================================
+// USER SESSION MANAGEMENT (for reconnection)
+// ==========================================
+model UserSession {
+  id              String   @id @default(cuid())
+  roomCode        String
+  userId          String
+  userName        String
+  teamId          String
+  sessionToken    String   @unique
+  isActive        Boolean  @default(true)
+  lastHeartbeat   DateTime @default(now())
+  
+  room            AuctionRoom @relation(fields: [roomCode], references: [roomCode], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([roomCode])
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([isActive])
+}
+
+// ==========================================
+// BID HISTORY & TRANSACTIONS
+// ==========================================
+model BidHistory {
+  id            String   @id @default(cuid())
+  roomCode      String
+  playerId      String
+  teamId        String
+  teamName      String
+  userName      String
+  bidAmount     Float
+  bidType       String   @default("normal") // normal, rtm, counter
+  timestamp     DateTime @default(now())
+  
+  room          AuctionRoom @relation(fields: [roomCode], references: [roomCode], onDelete: Cascade)
+  player        Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@index([roomCode])
+  @@index([playerId])
+  @@index([teamId])
+  @@index([timestamp])
 }
 
 // Leaderboard Entry Model
@@ -83,6 +186,7 @@ model UserStats {
 model PlayerPurchase {
   id          String   @id @default(cuid())
   roomCode    String
+  playerId    String
   playerName  String
   playerRole  String
   basePrice   Float
@@ -92,9 +196,26 @@ model PlayerPurchase {
   userName    String
   purchasedAt DateTime @default(now())
   
+  player      Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
   @@index([roomCode])
+  @@index([playerId])
   @@index([playerName])
   @@index([teamName])
   @@index([purchasedAt])
+}
+
+// ==========================================
+// PLAYER CACHE (for API rate limiting)
+// ==========================================
+model PlayerCache {
+  id          String   @id @default(cuid())
+  cacheKey    String   @unique
+  data        Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  
+  @@index([cacheKey])
+  @@index([expiresAt])
 }
 

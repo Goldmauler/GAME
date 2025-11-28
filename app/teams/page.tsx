@@ -79,12 +79,29 @@ export default function TeamsPage() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <Button
-            onClick={() => router.back()}
+            onClick={() => {
+              // Check if we should return to auction
+              const returnToAuction = sessionStorage.getItem('returnToAuction')
+              const auctionRoomCode = sessionStorage.getItem('auctionRoomCode')
+              
+              if (returnToAuction === 'true' && auctionRoomCode) {
+                // Clear the flag
+                sessionStorage.removeItem('returnToAuction')
+                // Go back in browser history to return to the active auction
+                window.history.back()
+              } else if (auctionRoomCode) {
+                // Navigate to room if no flag set
+                router.push(`/room/${auctionRoomCode}`)
+              } else {
+                // Fall back to browser back
+                router.back()
+              }
+            }}
             variant="outline"
             className="flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back
+            Back to Auction
           </Button>
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-white">All Teams</h1>

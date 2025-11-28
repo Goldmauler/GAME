@@ -79,6 +79,7 @@ function MultiplayerAuctionArena({
   const [soldPlayerInfo, setSoldPlayerInfo] = useState<{ name: string; team: string; price: number } | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [showTeamModal, setShowTeamModal] = useState(false)
+  const [showAllTeamsModal, setShowAllTeamsModal] = useState(false)
   
   // New auction features state
   const [currentRound, setCurrentRound] = useState<number>(1)
@@ -963,7 +964,7 @@ function MultiplayerAuctionArena({
             
             {/* View Teams Button */}
             <Button
-              onClick={() => router.push('/teams')}
+              onClick={() => setShowAllTeamsModal(true)}
               className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-6 text-base shadow-lg"
             >
               <ExternalLink className="w-5 h-5 mr-2" />
@@ -1316,6 +1317,159 @@ function MultiplayerAuctionArena({
                   </motion.div>
                 </motion.div>
               </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* All Teams Modal */}
+      <AnimatePresence>
+        {showAllTeamsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAllTeamsModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border-2 border-orange-500/50 shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-orange-600 to-red-600 p-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-black text-white mb-2">All Teams & Squads</h2>
+                  <p className="text-white/80">Complete overview of all teams in the auction</p>
+                </div>
+                <Button
+                  onClick={() => setShowAllTeamsModal(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/20 text-2xl px-4"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              {/* Teams List */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)] custom-scrollbar space-y-6">
+                {teams.filter(t => t.players.length > 0 || t.id === localTeamId).map((team) => {
+                  const getRoleColor = (role: string) => {
+                    switch (role) {
+                      case "Batsman": return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                      case "Bowler": return "bg-red-500/20 text-red-400 border-red-500/30"
+                      case "All-rounder": return "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                      case "Wicket-keeper": return "bg-green-500/20 text-green-400 border-green-500/30"
+                      default: return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                    }
+                  }
+
+                  const spent = 100 - team.budget
+                  const batsmen = team.players.filter(p => p.role === 'Batsman').length
+                  const bowlers = team.players.filter(p => p.role === 'Bowler').length
+                  const allRounders = team.players.filter(p => p.role === 'All-rounder').length
+                  const keepers = team.players.filter(p => p.role === 'Wicket-keeper').length
+
+                  return (
+                    <Card key={team.id} className="bg-slate-800/50 border-slate-700 overflow-hidden">
+                      {/* Team Header */}
+                      <div className="bg-gradient-to-r from-orange-600/20 to-red-600/20 border-b border-slate-700 p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                              {team.name}
+                              {team.id === localTeamId && (
+                                <Badge className="bg-green-500 text-white">Your Team</Badge>
+                              )}
+                            </h3>
+                            <div className="flex flex-wrap gap-4 text-sm">
+                              <div className="flex items-center gap-1 text-green-400">
+                                <DollarSign className="w-4 h-4" />
+                                <span className="font-semibold">Budget: ₹{team.budget}Cr</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-orange-400">
+                                <TrendingUp className="w-4 h-4" />
+                                <span className="font-semibold">Spent: ₹{spent.toFixed(1)}Cr</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-blue-400">
+                                <Users className="w-4 h-4" />
+                                <span className="font-semibold">{team.players.length}/{team.maxPlayers} Players</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Squad Composition */}
+                          <div className="bg-slate-900/50 rounded-lg p-3">
+                            <p className="text-xs text-gray-400 mb-2">Squad</p>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                <span className="text-gray-300">{batsmen} BAT</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-red-500" />
+                                <span className="text-gray-300">{bowlers} BWL</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                                <span className="text-gray-300">{allRounders} AR</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                <span className="text-gray-300">{keepers} WK</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Players Table */}
+                      {team.players.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-slate-900/50 border-b border-slate-700">
+                              <tr>
+                                <th className="text-left p-3 text-xs font-semibold text-gray-400">#</th>
+                                <th className="text-left p-3 text-xs font-semibold text-gray-400">Player</th>
+                                <th className="text-left p-3 text-xs font-semibold text-gray-400">Role</th>
+                                <th className="text-right p-3 text-xs font-semibold text-gray-400">Base</th>
+                                <th className="text-right p-3 text-xs font-semibold text-gray-400">Sold</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {team.players.map((player, idx) => (
+                                <tr key={player.id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
+                                  <td className="p-3 text-gray-400 text-sm">{idx + 1}</td>
+                                  <td className="p-3">
+                                    <span className="text-white font-medium text-sm">{player.name}</span>
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium ${getRoleColor(player.role)}`}>
+                                      {player.role}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-right text-gray-400 text-sm">₹{player.basePrice}Cr</td>
+                                  <td className="p-3 text-right text-orange-400 font-semibold text-sm">
+                                    ₹{player.soldPrice || player.basePrice}Cr
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-gray-500">
+                          No players in squad yet
+                        </div>
+                      )}
+                    </Card>
+                  )
+                })}
+              </div>
             </motion.div>
           </motion.div>
         )}
