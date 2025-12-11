@@ -79,6 +79,7 @@ function MultiplayerAuctionArena({
   const [soldPlayerInfo, setSoldPlayerInfo] = useState<{ name: string; team: string; price: number } | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [showTeamModal, setShowTeamModal] = useState(false)
+  const [showAllTeamsModal, setShowAllTeamsModal] = useState(false)
 
   // New auction features state
   const [currentRound, setCurrentRound] = useState<number>(1)
@@ -961,7 +962,7 @@ function MultiplayerAuctionArena({
 
             {/* View Teams Button */}
             <Button
-              onClick={() => router.push('/teams')}
+              onClick={() => setShowAllTeamsModal(true)}
               className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-6 text-base shadow-lg"
             >
               <ExternalLink className="w-5 h-5 mr-2" />
@@ -1318,7 +1319,7 @@ function MultiplayerAuctionArena({
           </motion.div>
         )}
       </AnimatePresence>
-
+      
       {/* Sale History Modal */}
       <SaleHistory
         saleHistory={saleHistory}
