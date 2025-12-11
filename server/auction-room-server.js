@@ -52,38 +52,36 @@ function getLocalIPs() {
   return ips
 }
 
-console.log(`\n🏏 IPL Auction Room Server Started Successfully!\n`)
-console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-console.log(`📡 WebSocket Server Running on Port: ${PORT}`)
-console.log(`🌍 Environment: ${IS_PRODUCTION ? 'PRODUCTION (Render)' : 'DEVELOPMENT'}`)
-console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
+console.log(`\nIPL Auction Room Server Started`)
+console.log(`-------------------------------------------`)
+console.log(`WebSocket Server Running on Port: ${PORT}`)
+console.log(`Environment: ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'}`)
+console.log(`-------------------------------------------\n`)
 
 if (IS_PRODUCTION) {
-  console.log(`🚀 Production Mode - Ready for Render deployment`)
+  console.log(`Production Mode - Ready for deployment`)
   console.log(`   WebSocket URL: wss://your-app.onrender.com`)
 } else {
-  console.log(`🌐 Development Access Points:\n`)
-  console.log(`   Local Machine:`)
-  console.log(`   └─ ws://localhost:${PORT}\n`)
+  console.log(`Development Access Points:\n`)
+  console.log(`   Local: ws://localhost:${PORT}\n`)
 
   const localIPs = getLocalIPs()
   if (localIPs.length > 0) {
-    console.log(`   Other Devices on Network:`)
+    console.log(`   Network:`)
     localIPs.forEach(ip => {
-      console.log(`   └─ ws://${ip}:${PORT}`)
+      console.log(`   - ws://${ip}:${PORT}`)
     })
-    console.log(`\n📱 Share this with other players:`)
-    console.log(`   Web App: http://${localIPs[0]}:3000`)
+    console.log(`\n   Web App: http://${localIPs[0]}:3000`)
   } else {
-    console.log(`   ⚠️  No network interfaces found. Only accessible via localhost.`)
+    console.log(`   Warning: No network interfaces found.`)
   }
 
-  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`💡 Tip: Make sure Next.js dev server is running on port 3000`)
-  console.log(`    Run: npm run dev (in another terminal)`)
+  console.log(`\n-------------------------------------------`)
+  console.log(`Tip: Run Next.js dev server on port 3000`)
+  console.log(`    Command: npm run dev`)
 }
 
-console.log(`\n🔥 Ready to accept connections!\n`)
+console.log(`\nReady to accept connections!\n`)
 
 // Room management
 const rooms = new Map() // roomCode -> Room object
@@ -186,10 +184,10 @@ async function saveRoomToDatabase(room) {
     }
 
     const result = await response.json()
-    console.log(`✅ Room ${room.roomCode} saved to database`)
+    console.log(`Room ${room.roomCode} saved to database`)
     return result
   } catch (error) {
-    console.error(`❌ Error saving room ${room.roomCode}:`, error.message)
+    console.error(`ERROR: Error saving room ${room.roomCode}:`, error.message)
     throw error
   }
 }
@@ -302,7 +300,7 @@ class AuctionRoom {
         clearTimeout(disconnectedUser.timeout)
       }
       this.disconnectedUsers.delete(userId)
-      console.log(`✅ ${userName} reconnected to room ${this.roomCode}`)
+      console.log(`${userName} reconnected to room ${this.roomCode}`)
       
       // Notify others about reconnection
       this.broadcastMessage({
@@ -334,7 +332,7 @@ class AuctionRoom {
     const timeout = setTimeout(() => {
       // After grace period, remove team reservation
       if (this.disconnectedUsers.has(userId)) {
-        console.log(`⏰ Grace period expired for ${userName} in room ${this.roomCode}`)
+        console.log(`Grace period expired for ${userName} in room ${this.roomCode}`)
         this.disconnectedUsers.delete(userId)
         if (teamId) {
           this.takenTeams.delete(teamId)
@@ -359,7 +357,7 @@ class AuctionRoom {
       timeout
     })
     
-    console.log(`⚠️ ${userName} disconnected from room ${this.roomCode}. Grace period: 2 minutes`)
+    console.log(`WARNING: ${userName} disconnected from room ${this.roomCode}. Grace period: 2 minutes`)
     
     // Notify others about disconnection
     this.broadcastMessage({
@@ -522,7 +520,7 @@ class AuctionRoom {
           this.takenTeams.add(assignedTeamId)
           this.clients.set(ws, client)
           teamIndex++
-          console.log(`✅ Auto-assigned ${client.userName} to team ${assignedTeamId}`)
+          console.log(`Auto-assigned ${client.userName} to team ${assignedTeamId}`)
         }
       })
       
@@ -666,7 +664,7 @@ class AuctionRoom {
     
     // Check if currentPlayer exists
     if (!currentPlayer) {
-      console.error('❌ No current player found at index:', this.auctionState.playerIndex)
+      console.error('ERROR: No current player found at index:', this.auctionState.playerIndex)
       this.endAuction()
       return
     }
@@ -799,7 +797,7 @@ class AuctionRoom {
     this.auctionState.phase = 'break'
     this.auctionState.breakType = 'snack'
     this.auctionState.breakTimeLeft = 60 // 1 minute break
-    this.auctionState.breakMessage = `🍿 Round 1 Complete! Snack Break - Get ready for Accelerated Auction Round 2!`
+    this.auctionState.breakMessage = `Round 1 Complete! Strategic Break - Get ready for Accelerated Auction Round 2!`
     
     this.stopTicking()
     this.broadcastState()
@@ -856,11 +854,11 @@ class AuctionRoom {
   
   getCategoryDisplayName(category) {
     const names = {
-      'marquee': '⭐ Marquee Players',
-      'batsmen': '🏏 Batsmen',
-      'bowlers': '⚡ Bowlers',
-      'allrounders': '💪 All-Rounders',
-      'wicketkeepers': '🧤 Wicket-Keepers'
+      'marquee': 'Marquee Players',
+      'batsmen': 'Batsmen',
+      'bowlers': 'Bowlers',
+      'allrounders': 'All-Rounders',
+      'wicketkeepers': 'Wicket-Keepers'
     }
     return names[category] || category
   }
@@ -881,7 +879,7 @@ class AuctionRoom {
     this.auctionState.phase = 'strategic_timeout'
     this.auctionState.breakType = 'strategic'
     this.auctionState.breakTimeLeft = 90 // 90 seconds strategic timeout
-    this.auctionState.breakMessage = `⏸️ Strategic Timeout called by ${team ? team.name : 'Team'}`
+    this.auctionState.breakMessage = `Strategic Timeout called by ${team ? team.name : 'Team'}`
     
     this.stopTicking()
     this.broadcastState()
@@ -1044,10 +1042,10 @@ class AuctionRoom {
       }
 
       const result = await response.json()
-      console.log(`✅ Results saved for room ${this.roomCode}`)
+      console.log(`Results saved for room ${this.roomCode}`)
       return result
     } catch (error) {
-      console.error(`❌ Error saving results for room ${this.roomCode}:`, error.message)
+      console.error(`ERROR: Error saving results for room ${this.roomCode}:`, error.message)
       throw error
     }
   }
@@ -1083,10 +1081,10 @@ class AuctionRoom {
         const errorText = await response.text()
         console.error(`Failed to save player purchase: ${response.status} ${errorText}`)
       } else {
-        console.log(`✅ Saved purchase: ${player.name} → ${team.name} (₹${soldPrice}Cr)`)
+        console.log(`Saved purchase: ${player.name} → ${team.name} (₹${soldPrice}Cr)`)
       }
     } catch (error) {
-      console.error(`❌ Error saving player purchase:`, error.message)
+      console.error(`ERROR: Error saving player purchase:`, error.message)
     }
   }
 
@@ -1232,7 +1230,7 @@ function handleCreateRoom(ws, payload) {
   // Add host as a client in the room
   room.addClient(ws, null, hostName || 'Host', hostId)
 
-  console.log(`✅ Room ${roomCode} created by ${hostName}`)
+  console.log(`Room ${roomCode} created by ${hostName}`)
 
   // Save room to database
   saveRoomToDatabase(room).catch(err => {
@@ -1275,7 +1273,7 @@ function handleJoinRoom(ws, payload) {
     room.addClient(ws, disconnectedUser.teamId, userName, userId, true)
     clientRooms.set(ws, roomCode)
     
-    console.log(`🔄 ${userName} reconnecting to room ${roomCode}`)
+    console.log(`${userName} reconnecting to room ${roomCode}`)
     
     // Send full room state for sync
     ws.send(JSON.stringify({
@@ -1381,19 +1379,19 @@ function handleJoinRoom(ws, payload) {
 function handleSelectTeam(ws, payload) {
   const roomCode = clientRooms.get(ws)
   if (!roomCode) {
-    console.log('❌ Select team: No room code found')
+    console.log('ERROR: Select team: No room code found')
     return
   }
 
   const room = rooms.get(roomCode)
   if (!room) {
-    console.log('❌ Select team: Room not found')
+    console.log('ERROR: Select team: Room not found')
     return
   }
 
   const { teamId } = payload
   
-  console.log(`🎯 Team selection attempt: teamId=${teamId}`)
+  console.log(`Team selection attempt: teamId=${teamId}`)
 
   const success = room.selectTeam(ws, teamId)
   
@@ -1401,7 +1399,7 @@ function handleSelectTeam(ws, payload) {
     const client = room.clients.get(ws)
     const team = room.teams.find(t => t.id === teamId)
     
-    console.log(`✅ ${client.userName} selected team: ${team.name}`)
+    console.log(`${client.userName} selected team: ${team.name}`)
     
     ws.send(JSON.stringify({
       type: 'team-selected',
@@ -1436,7 +1434,7 @@ function handleSelectTeam(ws, payload) {
       room.notifyReadyToStart()
     }
   } else {
-    console.log(`❌ Team ${teamId} is already taken or unavailable`)
+    console.log(`ERROR: Team ${teamId} is already taken or unavailable`)
     ws.send(JSON.stringify({
       type: 'team-taken-error',
       payload: { 
@@ -1450,13 +1448,13 @@ function handleSelectTeam(ws, payload) {
 function handlePlayerReady(ws, payload) {
   const roomCode = clientRooms.get(ws)
   if (!roomCode) {
-    console.log('❌ Player ready: No room code found')
+    console.log('ERROR: Player ready: No room code found')
     return
   }
 
   const room = rooms.get(roomCode)
   if (!room) {
-    console.log('❌ Player ready: Room not found')
+    console.log('ERROR: Player ready: Room not found')
     return
   }
 
@@ -1465,7 +1463,7 @@ function handlePlayerReady(ws, payload) {
   
   if (success) {
     const client = room.clients.get(ws)
-    console.log(`✅ ${client.userName} is ${ready ? 'ready' : 'not ready'}`)
+    console.log(`${client.userName} is ${ready ? 'ready' : 'not ready'}`)
     
     // Broadcast lobby update to all clients
     room.broadcastLobbyUpdate()
@@ -1480,24 +1478,24 @@ function handlePlayerReady(ws, payload) {
 function handleStartAuction(ws) {
   const roomCode = clientRooms.get(ws)
   if (!roomCode) {
-    console.log('❌ No room code found for client')
+    console.log('ERROR: No room code found for client')
     return
   }
 
   const room = rooms.get(roomCode)
   if (!room) {
-    console.log('❌ Room not found:', roomCode)
+    console.log('ERROR: Room not found:', roomCode)
     return
   }
 
   const client = room.clients.get(ws)
   
-  console.log(`🎬 Start auction requested by ${client?.userName} in room ${roomCode}`)
+  console.log(`Start auction requested by ${client?.userName} in room ${roomCode}`)
   console.log(`   Players in room: ${room.clients.size}, Min teams: ${room.minTeams}`)
   
   // Only host can start the auction
   if (!client || !client.isHost) {
-    console.log('❌ Not host or client not found')
+    console.log('ERROR: Not host or client not found')
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: 'Only the host can start the auction' },
@@ -1507,7 +1505,7 @@ function handleStartAuction(ws) {
 
   // Need minimum teams
   if (room.clients.size < room.minTeams) {
-    console.log(`❌ Not enough teams: ${room.clients.size} < ${room.minTeams}`)
+    console.log(`ERROR: Not enough teams: ${room.clients.size} < ${room.minTeams}`)
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: `Need at least ${room.minTeams} teams to start` },
@@ -1515,7 +1513,7 @@ function handleStartAuction(ws) {
     return
   }
 
-  console.log('✅ All validations passed, starting auction...')
+  console.log('All validations passed, starting auction...')
 
   // Notify all clients that auction is starting
   const startMessage = JSON.stringify({
@@ -1532,7 +1530,7 @@ function handleStartAuction(ws) {
   // Start the auction countdown
   const started = room.startCountdownTimer()
   if (!started) {
-    console.log('❌ Failed to start countdown timer')
+    console.log('ERROR: Failed to start countdown timer')
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: 'Unable to start auction' },
@@ -1693,11 +1691,11 @@ setInterval(() => {
 
 // Start HTTP server
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n✅ IPL Auction Server is LIVE!`)
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-  console.log(`🌐 HTTP Server: http://0.0.0.0:${PORT}`)
-  console.log(`🔌 WebSocket Server: ws://0.0.0.0:${PORT}`)
-  console.log(`💚 Health Check: http://0.0.0.0:${PORT}/health`)
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
+  console.log(`\nIPL Auction Server is LIVE!`)
+  console.log(`-----------------------------------------------------`)
+  console.log(`HTTP Server: http://0.0.0.0:${PORT}`)
+  console.log(`WebSocket Server: ws://0.0.0.0:${PORT}`)
+  console.log(`Health Check: http://0.0.0.0:${PORT}/health`)
+  console.log(`-----------------------------------------------------\n`)
   console.log(`Server is ready to accept connections!`)
 })

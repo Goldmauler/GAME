@@ -258,7 +258,7 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                     disabled={isCreating || !userName.trim()}
                     className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed text-sm sm:text-base"
                   >
-                    {isCreating ? "Creating..." : "Create Room 🚀"}
+                    {isCreating ? "Creating..." : "Create Room"}
                   </button>
                 </div>
               </div>
@@ -378,7 +378,7 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-400">
-                          👥 {room.playerCount}/{room.maxPlayers} players
+                           {room.playerCount}/{room.maxPlayers} players
                         </span>
                         <span className="text-blue-400 font-semibold">Click to Join →</span>
                       </div>
@@ -405,7 +405,7 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                   transition={{ type: "spring", duration: 0.5 }}
                   className="text-7xl mb-4"
                 >
-                  🎉
+                  
                 </motion.div>
                 <h2 className="text-4xl font-black text-green-400 mb-2">Room Created!</h2>
                 <p className="text-gray-300">Share this code with your friends</p>
@@ -422,7 +422,7 @@ export default function RoomLobby({ onRoomJoined, wsConnected, wsRef }: RoomLobb
                     }}
                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all"
                   >
-                    📋 Copy
+                    Copy
                   </button>
                 </div>
               </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { Target, Zap, Award, Shield, Users } from "lucide-react"
 
 interface Player {
   id: string
@@ -76,7 +77,7 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
     setError(null)
     
     try {
-      console.log(`🔍 Fetching details for: ${player.name}`)
+      console.log(`Fetching details for: ${player.name}`)
       
       // Try fetching from our Next.js API endpoint first
       const response = await fetch(`/api/players?name=${encodeURIComponent(player.name)}`, {
@@ -85,18 +86,18 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
           'Content-Type': 'application/json',
         },
       }).catch(err => {
-        console.warn('⚠️ API fetch failed, using fallback data:', err)
+        console.warn('WARNING: API fetch failed, using fallback data:', err)
         return null
       })
       
       if (response && response.ok) {
         const result = await response.json()
-        console.log('📡 API Response:', result)
+        console.log('API Response:', result)
         
         if (result.success && result.data && result.data.length > 0) {
           const playerData = result.data[0]
-          console.log('✅ Using REAL API data for:', playerData.name)
-          console.log('🎯 Source:', result.source)
+          console.log(' Using REAL API data for:', playerData.name)
+          console.log(' Source:', result.source)
           
           // Now fetch detailed player stats from Cricbuzz
           const infoResponse = await fetch(`/api/player-info?id=${playerData.id || playerData.cricbuzzId}`).catch(() => null)
@@ -106,7 +107,7 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
             const infoResult = await infoResponse.json()
             if (infoResult.success && infoResult.data) {
               detailedInfo = infoResult.data
-              console.log('✅ Got detailed Cricbuzz stats:', detailedInfo)
+              console.log(' Got detailed Cricbuzz stats:', detailedInfo)
             }
           }
           
@@ -146,14 +147,14 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
           setLoading(false)
           return
         } else {
-          console.log('⚠️ API returned no data, using fallback')
+          console.log('WARNING: API returned no data, using fallback')
         }
       } else {
-        console.log('⚠️ API request failed, using fallback')
+        console.log('WARNING: API request failed, using fallback')
       }
       
       // Fallback to enhanced mock data based on real player info
-      console.log('📚 Using curated IPL data for:', player.name)
+      console.log('Using curated IPL data for:', player.name)
       await new Promise(resolve => setTimeout(resolve, 300))
       
       // Enhanced player profiles based on real IPL data
@@ -275,11 +276,11 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case "Batsman": return "🏏"
-      case "Bowler": return "⚡"
-      case "All-rounder": return "⭐"
-      case "Wicket-keeper": return "🧤"
-      default: return "👤"
+      case "Batsman": return <Target className="w-4 h-4 inline" />
+      case "Bowler": return <Zap className="w-4 h-4 inline" />
+      case "All-rounder": return <Award className="w-4 h-4 inline" />
+      case "Wicket-keeper": return <Shield className="w-4 h-4 inline" />
+      default: return <Users className="w-4 h-4 inline" />
     }
   }
 
@@ -324,7 +325,7 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                 className="inline-block text-6xl mb-4"
               >
-                🏏
+                
               </motion.div>
               <p className="text-gray-400">Loading player details...</p>
             </div>
@@ -429,7 +430,7 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
                   {/* Recent Batting */}
                   {details.recentMatches.batting.length > 0 && (
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold text-white mb-3">🏏 Batting Performances</h4>
+                      <h4 className="text-lg font-semibold text-white mb-3"> Batting Performances</h4>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-800/50">
@@ -458,7 +459,7 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
                   {/* Recent Bowling */}
                   {details.recentMatches.bowling.length > 0 && (
                     <div>
-                      <h4 className="text-lg font-semibold text-white mb-3">⚡ Bowling Performances</h4>
+                      <h4 className="text-lg font-semibold text-white mb-3"> Bowling Performances</h4>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-800/50">
@@ -499,7 +500,7 @@ export default function PlayerAnalysis({ player, onClose }: PlayerAnalysisProps)
                         transition={{ delay: idx * 0.1 }}
                         className="flex items-center gap-3 text-gray-300"
                       >
-                        <span className="text-yellow-400">⭐</span>
+                        <span className="text-yellow-400"></span>
                         {highlight}
                       </motion.li>
                     ))}

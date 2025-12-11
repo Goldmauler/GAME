@@ -125,7 +125,7 @@ export default function PointsTableAdvanced({ teams }: PointsTableAdvancedProps)
                               : "bg-white/20 text-white"
                       }`}
                     >
-                      {team.rank === 1 ? "🏆" : team.rank === 2 ? "🥈" : team.rank === 3 ? "🥉" : team.rank}
+                      {team.rank === 1 ? "" : team.rank === 2 ? "" : team.rank === 3 ? "" : team.rank}
                     </motion.div>
                     <div>
                       <h3 className="font-black text-white text-lg">{team.teamName}</h3>

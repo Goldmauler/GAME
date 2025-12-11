@@ -48,10 +48,10 @@ export default function TeamRatingCard({ rating, teamName, teamColor }: TeamRati
       {/* Category Scores */}
       <div className="space-y-3 mb-6">
         {[
-          { label: "Batting", score: rating.battingScore, icon: "🏏" },
+          { label: "Batting", score: rating.battingScore, icon: "" },
           { label: "Bowling", score: rating.bowlingScore, icon: "⚾" },
-          { label: "Balance", score: rating.balanceScore, icon: "⚖️" },
-          { label: "Value", score: rating.valueScore, icon: "💎" },
+          { label: "Balance", score: rating.balanceScore, icon: "" },
+          { label: "Value", score: rating.valueScore, icon: "" },
         ].map((category) => (
           <motion.div
             key={category.label}
@@ -124,7 +124,7 @@ export default function TeamRatingCard({ rating, teamName, teamColor }: TeamRati
           transition={{ delay: 0.5 }}
           className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4"
         >
-          <h4 className="font-bold text-blue-400 text-sm mb-2">💡 Key Insight</h4>
+          <h4 className="font-bold text-blue-400 text-sm mb-2">Key Insight</h4>
           <p className="text-xs text-blue-300">{rating.insights[0]}</p>
         </motion.div>
       )}

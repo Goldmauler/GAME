@@ -41,7 +41,7 @@ export default function APITestPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-3xl">🏏 Cricket API Test</CardTitle>
+            <CardTitle className="text-3xl"> Cricket API Test</CardTitle>
             <CardDescription>
               Test your Cricket API connection (API Key: 3a9d8ee5-d5fc-49a6-820e-f1b2422952a3)
             </CardDescription>
@@ -72,10 +72,10 @@ export default function APITestPage() {
                 
                 {apiStatus.info && (
                   <div className="space-y-1 text-sm">
-                    <p>📊 Hits Today: <strong>{apiStatus.info.hitsToday || 0}</strong> / {apiStatus.info.hitsLimit || 0}</p>
-                    <p>💳 Credits Remaining: <strong>{apiStatus.info.credits || 0}</strong></p>
-                    <p>🌐 Server: <strong>#{apiStatus.info.server || 'N/A'}</strong></p>
-                    <p>📋 Total Rows: <strong>{apiStatus.info.totalRows || 0}</strong></p>
+                    <p>Hits Today: <strong>{apiStatus.info.hitsToday || 0}</strong> / {apiStatus.info.hitsLimit || 0}</p>
+                    <p>Credits Remaining: <strong>{apiStatus.info.credits || 0}</strong></p>
+                    <p>Server: <strong>#{apiStatus.info.server || 'N/A'}</strong></p>
+                    <p>Total Rows: <strong>{apiStatus.info.totalRows || 0}</strong></p>
                   </div>
                 )}
                 
@@ -124,15 +124,15 @@ export default function APITestPage() {
                       <div key={index} className="mb-4 p-3 bg-white dark:bg-slate-900 rounded border">
                         <h3 className="font-bold text-lg">{player.name}</h3>
                         <div className="grid grid-cols-2 gap-2 text-sm mt-2">
-                          <p>🎯 Role: <strong>{player.playerRole || 'N/A'}</strong></p>
-                          <p>🌍 Country: <strong>{player.country || 'N/A'}</strong></p>
-                          <p>🎂 DOB: <strong>{player.dateOfBirth || 'N/A'}</strong></p>
-                          <p>📍 Birthplace: <strong>{player.placeOfBirth || 'N/A'}</strong></p>
+                          <p>Role: <strong>{player.playerRole || 'N/A'}</strong></p>
+                          <p>Country: <strong>{player.country || 'N/A'}</strong></p>
+                          <p>DOB: <strong>{player.dateOfBirth || 'N/A'}</strong></p>
+                          <p>Birthplace: <strong>{player.placeOfBirth || 'N/A'}</strong></p>
                           {player.battingStyle && (
-                            <p>🏏 Batting: <strong>{player.battingStyle}</strong></p>
+                            <p>Batting: <strong>{player.battingStyle}</strong></p>
                           )}
                           {player.bowlingStyle && (
-                            <p>⚡ Bowling: <strong>{player.bowlingStyle}</strong></p>
+                            <p>Bowling: <strong>{player.bowlingStyle}</strong></p>
                           )}
                         </div>
                       </div>

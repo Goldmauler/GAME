@@ -148,6 +148,17 @@ export default function AuctionRoomApp() {
             // Auction is starting
             setPhase("auction")
           }
+          
+          if (msg.type === "player_removed") {
+            // Check if it's the current user who was removed
+            const { userName: removedUser, message } = msg.payload
+            if (removedUser === userName) {
+              console.log(" You were removed from the room:", message)
+              localStorage.removeItem('auctionConnection')
+              alert("You have been removed from the room due to inactivity. Please rejoin from the home page.")
+              window.location.href = "/"
+            }
+          }
 
           if (msg.type === "error") {
             alert(`Error: ${msg.payload.message}`)
@@ -157,14 +168,36 @@ export default function AuctionRoomApp() {
         }
       }
 
-      ws.onclose = () => {
-        console.log("Disconnected from auction room server")
+      ws.onclose = (event) => {
+        console.log("Disconnected from auction room server", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        })
         setWsConnected(false)
         wsRef.current = null
+        
+        // If connection closed abnormally, check for grace period expiry
+        if (!event.wasClean && roomCode) {
+          const storedConnection = localStorage.getItem('auctionConnection')
+          if (storedConnection) {
+            const connectionInfo = JSON.parse(storedConnection)
+            const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
+            const twoMinutes = 2 * 60 * 1000
+            
+            if (timeSinceDisconnect > twoMinutes) {
+              console.log(" Grace period expired - clearing stored connection")
+              localStorage.removeItem('auctionConnection')
+              alert("Your session has expired. You have been removed from the room. Please rejoin from the home page.")
+              window.location.href = "/"
+            }
+          }
+        }
       }
 
       ws.onerror = (error) => {
         console.error("WebSocket error:", error)
+        // Don't show error to user - onclose will handle it
       }
     } catch (e) {
       console.warn("WebSocket connection failed", e)

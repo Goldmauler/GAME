@@ -12,10 +12,10 @@ export default function AIInsights({ rating }: AIInsightsProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>("insights")
 
   const sections = [
-    { id: "insights", label: "Key Insights", items: rating.insights, icon: "💡", color: "blue" },
-    { id: "strengths", label: "Strengths", items: rating.strengths, icon: "✓", color: "green" },
-    { id: "weaknesses", label: "Weaknesses", items: rating.weaknesses, icon: "✗", color: "red" },
-    { id: "recommendations", label: "Recommendations", items: rating.recommendations, icon: "🎯", color: "orange" },
+    { id: "insights", label: "Key Insights", items: rating.insights, icon: "*", color: "blue" },
+    { id: "strengths", label: "Strengths", items: rating.strengths, icon: "+", color: "green" },
+    { id: "weaknesses", label: "Weaknesses", items: rating.weaknesses, icon: "-", color: "red" },
+    { id: "recommendations", label: "Recommendations", items: rating.recommendations, icon: ">", color: "orange" },
   ]
 
   return (

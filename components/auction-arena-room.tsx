@@ -207,7 +207,7 @@ function AuctionArena({
               <div className="h-8 w-px bg-gray-600"></div>
               <div>
                 <p className="text-sm text-gray-400">Players in Room</p>
-                <p className="text-lg font-bold text-green-400">👥 {playerCount}/10</p>
+                <p className="text-lg font-bold text-green-400"> {playerCount}/10</p>
               </div>
             </div>
             <div className="text-right">
@@ -216,14 +216,13 @@ function AuctionArena({
                   onClick={handleStartAuction}
                   className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-6 py-3 rounded-lg font-bold transition-all"
                 >
-                  🚀 Start Auction
+                   Start Auction
                 </button>
               )}
-              {auctionPhase === "active" && <div className="text-green-400 font-bold">🔴 LIVE</div>}
-              {auctionPhase === "completed" && <div className="text-blue-400 font-bold">✓ Completed</div>}
+              {auctionPhase === "active" && <div className="text-green-400 font-bold">LIVE</div>}
+              {auctionPhase === "completed" && <div className="text-blue-400 font-bold">Completed</div>}
             </div>
           </div>
-
           {auctionPhase === "waiting" ? (
             <motion.div
               initial={{ opacity: 0 }}
@@ -249,7 +248,7 @@ function AuctionArena({
                         title="Click to view player details"
                       >
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-9xl animate-pulse font-bold text-orange-500">★</div>
+                          <div className="text-9xl animate-pulse font-bold text-orange-500">*</div>
                         </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                         <div className="absolute bottom-4 right-4 bg-orange-500/90 text-white px-3 py-1 rounded-full text-sm font-bold">View Details</div>

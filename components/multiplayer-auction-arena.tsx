@@ -79,12 +79,12 @@ function MultiplayerAuctionArena({
   const [soldPlayerInfo, setSoldPlayerInfo] = useState<{ name: string; team: string; price: number } | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
   const [showTeamModal, setShowTeamModal] = useState(false)
-  
+
   // New auction features state
   const [currentRound, setCurrentRound] = useState<number>(1)
   const [maxRounds, setMaxRounds] = useState<number>(2)
   const [currentCategory, setCurrentCategory] = useState<string>('marquee')
-  const [categoryName, setCategoryName] = useState<string>('⭐ Marquee Players')
+  const [categoryName, setCategoryName] = useState<string>('Marquee Players')
   const [phase, setPhase] = useState<string>('lobby')
   const [breakType, setBreakType] = useState<string | null>(null)
   const [breakTimeLeft, setBreakTimeLeft] = useState<number>(0)
@@ -97,14 +97,14 @@ function MultiplayerAuctionArena({
   const [saleHistory, setSaleHistory] = useState<any[]>([])
   const [showSaleHistory, setShowSaleHistory] = useState(false)
   const [isHost, setIsHost] = useState(isHostProp)
-  
+
   // Reconnection state
   const [isReconnecting, setIsReconnecting] = useState(false)
   const [showReconnectPrompt, setShowReconnectPrompt] = useState(false)
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const maxReconnectAttempts = 5
   const reconnectIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   // Update isHost when prop changes
   useEffect(() => {
     setIsHost(isHostProp)
@@ -115,7 +115,7 @@ function MultiplayerAuctionArena({
   const highestBidderTeam = teams.find((t) => t.id === highestBidder)
   const isMyBid = highestBidder === localTeamId
   const canBid = localTeam && localTeam.budget >= (currentPrice + 1) && localTeam.players.length < localTeam.maxPlayers
-  
+
   // Handler to view player details in new tab
   const handleViewPlayerDetails = () => {
     if (currentPlayer && typeof window !== 'undefined') {
@@ -194,14 +194,14 @@ function MultiplayerAuctionArena({
       // For production with potentially slower connections, use 100ms batching
       // This reduces state updates from ~60/sec to ~10/sec
       const delay = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com') ? 100 : 0
-      
+
       const callback = () => {
         scheduledRef.current = false
         const payload = pendingPayloadRef.current
         if (payload) applyPayload(payload)
         pendingPayloadRef.current = null
       }
-      
+
       if (delay > 0) {
         setTimeout(callback, delay)
       } else {
@@ -243,28 +243,28 @@ function MultiplayerAuctionArena({
           setTimeout(() => onComplete(), 2000)
           return
         }
-        
+
         // Handle reconnection success
         if (msg.type === "reconnected") {
-          console.log("✅ Successfully reconnected to room")
+          console.log(" Successfully reconnected to room")
           setIsReconnecting(false)
           setShowReconnectPrompt(false)
           setReconnectAttempts(0)
-          
+
           // Apply the synced state
           applyPayload(msg.payload)
           return
         }
-        
+
         // Handle player disconnected
         if (msg.type === "player_disconnected") {
-          console.log(`⚠️ ${msg.payload.userName} disconnected`)
+          console.log(`WARNING: ${msg.payload.userName} disconnected`)
           return
         }
-        
+
         // Handle player reconnected
         if (msg.type === "player_reconnected") {
-          console.log(`✅ ${msg.payload.userName} reconnected`)
+          console.log(` ${msg.payload.userName} reconnected`)
           return
         }
       } catch (e) {
@@ -278,7 +278,7 @@ function MultiplayerAuctionArena({
       wsRef.current?.removeEventListener("message", handleMessage)
     }
   }, [wsRef, wsConnected, localTeamId, onComplete])
-  
+
   // Store connection info in localStorage for reconnection
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -291,39 +291,39 @@ function MultiplayerAuctionArena({
       localStorage.setItem('auctionConnection', JSON.stringify(connectionInfo))
     }
   }, [roomCode, userName, localTeamId])
-  
+
   // Handle disconnection and attempt reconnection
   useEffect(() => {
     if (!wsConnected && !isReconnecting) {
-      console.log("⚠️ WebSocket disconnected, attempting reconnection...")
+      console.log("WARNING: WebSocket disconnected, attempting reconnection...")
       setShowReconnectPrompt(true)
       attemptReconnect()
     }
   }, [wsConnected])
-  
+
   const attemptReconnect = () => {
     if (reconnectAttempts >= maxReconnectAttempts) {
-      console.log("❌ Max reconnection attempts reached")
+      console.log("ERROR: Max reconnection attempts reached")
       setShowReconnectPrompt(false)
       return
     }
-    
+
     setIsReconnecting(true)
     setReconnectAttempts(prev => prev + 1)
-    
+
     // Try to reconnect after a delay (exponential backoff)
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000)
-    
+
     reconnectIntervalRef.current = setTimeout(() => {
-      console.log(`🔄 Reconnection attempt ${reconnectAttempts + 1}/${maxReconnectAttempts}`)
-      
+      console.log(` Reconnection attempt ${reconnectAttempts + 1}/${maxReconnectAttempts}`)
+
       // The parent component should handle WebSocket reconnection
       // We just need to send the rejoin message when connection is restored
       if (wsConnected && wsRef.current) {
         const storedInfo = localStorage.getItem('auctionConnection')
         if (storedInfo) {
           const { roomCode: savedRoom, userName: savedName, userId: savedId } = JSON.parse(storedInfo)
-          
+
           wsRef.current.send(JSON.stringify({
             type: "join-room",
             payload: {
@@ -339,12 +339,12 @@ function MultiplayerAuctionArena({
       }
     }, delay)
   }
-  
+
   const handleManualReconnect = () => {
     setReconnectAttempts(0)
     attemptReconnect()
   }
-  
+
   // Cleanup reconnection interval
   useEffect(() => {
     return () => {
@@ -368,11 +368,11 @@ function MultiplayerAuctionArena({
       },
     }))
   }
-  
+
   const handleStrategicTimeout = () => {
     if (!wsRef.current || !wsConnected || phase !== 'active') return
     if (!strategicTimeouts[localTeamId] || strategicTimeouts[localTeamId] <= 0) return
-    
+
     wsRef.current.send(JSON.stringify({
       type: "strategic-timeout",
       payload: {
@@ -380,10 +380,10 @@ function MultiplayerAuctionArena({
       },
     }))
   }
-  
+
   const handleMarkUnsold = () => {
     if (!wsRef.current || !wsConnected || phase !== 'active') return
-    
+
     wsRef.current.send(JSON.stringify({
       type: "mark-unsold",
       payload: {
@@ -447,7 +447,7 @@ function MultiplayerAuctionArena({
             <div>
               <p className="text-white font-bold">Connection Lost</p>
               <p className="text-orange-100 text-sm">
-                {isReconnecting 
+                {isReconnecting
                   ? `Reconnecting... (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`
                   : "Trying to reconnect to the game..."
                 }
@@ -464,7 +464,7 @@ function MultiplayerAuctionArena({
           </div>
         </motion.div>
       )}
-      
+
       <div className="max-w-7xl mx-auto">
         {/* Header with User Team Info */}
         <div className="flex items-start justify-between mb-6">
@@ -508,7 +508,7 @@ function MultiplayerAuctionArena({
                       <p className="text-xs text-gray-500">{Math.round(((100 - localTeam.budget) / 100) * 100)}%</p>
                     </div>
                     <div className="w-full bg-slate-700 rounded-full h-1.5 mt-2">
-                      <div 
+                      <div
                         className="bg-gradient-to-r from-orange-500 to-red-500 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${((100 - localTeam.budget) / 100) * 100}%` }}
                       />
@@ -582,21 +582,21 @@ function MultiplayerAuctionArena({
                       }}
                       className="mb-6"
                     >
-                      {breakType === 'snack' && <span className="text-8xl">🍿</span>}
-                      {breakType === 'category' && <span className="text-8xl">⏸️</span>}
-                      {breakType === 'strategic' && <span className="text-8xl">🤔</span>}
+                      {breakType === 'snack' && <span className="text-8xl">Break</span>}
+                      {breakType === 'category' && <span className="text-8xl">Done</span>}
+                      {breakType === 'strategic' && <span className="text-8xl">Pause</span>}
                     </motion.div>
-                    
+
                     {/* Break Title */}
                     <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-4">
                       {breakType === 'snack' && 'Snack Break!'}
                       {breakType === 'category' && 'Category Complete!'}
                       {breakType === 'strategic' && 'Strategic Timeout'}
                     </h2>
-                    
+
                     {/* Break Message */}
                     <p className="text-xl text-white mb-6">{breakMessage}</p>
-                    
+
                     {/* Countdown */}
                     <div className="mb-6">
                       <motion.div
@@ -613,7 +613,7 @@ function MultiplayerAuctionArena({
                       </motion.div>
                       <p className="text-gray-400 mt-2">Resuming soon...</p>
                     </div>
-                    
+
                     {/* Progress Bar */}
                     <div className="w-full bg-slate-700 rounded-full h-2">
                       <motion.div
@@ -659,11 +659,10 @@ function MultiplayerAuctionArena({
                       duration: 0.5,
                       repeat: timeLeft <= 10 ? Infinity : 0,
                     }}
-                    className={`text-5xl font-black ${
-                      timeLeft <= 10 
-                        ? "text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500" 
+                    className={`text-5xl font-black ${timeLeft <= 10
+                        ? "text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500"
                         : "text-white"
-                    }`}
+                      }`}
                   >
                     {timeLeft}s
                   </motion.div>
@@ -673,11 +672,10 @@ function MultiplayerAuctionArena({
                 <div className="relative">
                   <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
                     <motion.div
-                      className={`h-3 rounded-full ${
-                        timeLeft <= 10 
-                          ? "bg-gradient-to-r from-red-500 to-orange-500" 
+                      className={`h-3 rounded-full ${timeLeft <= 10
+                          ? "bg-gradient-to-r from-red-500 to-orange-500"
                           : "bg-gradient-to-r from-orange-500 to-yellow-500"
-                      }`}
+                        }`}
                       initial={{ width: "100%" }}
                       animate={{ width: `${(timeLeft / 60) * 100}%` }}
                       transition={{ duration: 0.3 }}
@@ -701,7 +699,7 @@ function MultiplayerAuctionArena({
                 {/* Time warnings */}
                 <div className="mt-3 flex items-center justify-between text-xs">
                   <span className="text-gray-500">
-                    {timeLeft > 30 ? "🟢 Plenty of time" : timeLeft > 10 ? "🟡 Time running out" : "🔴 Hurry up!"}
+                    {timeLeft > 30 ? "Plenty of time" : timeLeft > 10 ? "Time running out" : "Hurry up!"}
                   </span>
                   <span className="text-gray-500">
                     {Math.floor((timeLeft / 60) * 100)}% remaining
@@ -724,9 +722,9 @@ function MultiplayerAuctionArena({
                     {currentPlayer.name}
                     <Info className="w-6 h-6 text-orange-400 animate-pulse" />
                   </motion.h2>
-                  
-                  <p className="text-xs text-gray-400 mb-3">👆 Click name for detailed stats</p>
-                  
+
+                  <p className="text-xs text-gray-400 mb-3">Click name for detailed stats</p>
+
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className={`${getRoleColor(currentPlayer.role)} border px-4 py-1.5 text-sm font-semibold`}>
                       <span className="flex items-center gap-2">
@@ -812,7 +810,7 @@ function MultiplayerAuctionArena({
                           ₹{currentPrice}Cr
                         </p>
                       </motion.div>
-                      
+
                       {highestBidderTeam && (
                         <motion.div
                           initial={{ opacity: 0, x: -10 }}
@@ -870,7 +868,7 @@ function MultiplayerAuctionArena({
                           Strategic Timeout ({strategicTimeouts[localTeamId]} left)
                         </Button>
                       )}
-                      
+
                       {/* Mark Unsold Button - Host Only */}
                       {isHost && phase === 'active' && (
                         <Button
@@ -883,7 +881,7 @@ function MultiplayerAuctionArena({
                           Mark as Unsold
                         </Button>
                       )}
-                      
+
                       {/* View Sale History Button */}
                       <Button
                         onClick={() => setShowSaleHistory(true)}
@@ -925,8 +923,8 @@ function MultiplayerAuctionArena({
                             flex items-center justify-between 
                             bg-gradient-to-r rounded-lg px-4 py-3
                             border transition-all hover:scale-102
-                            ${idx === 0 
-                              ? 'from-orange-900/30 to-orange-800/20 border-orange-500/50' 
+                            ${idx === 0
+                              ? 'from-orange-900/30 to-orange-800/20 border-orange-500/50'
                               : 'from-slate-700/30 to-slate-700/20 border-slate-600/30'
                             }
                           `}
@@ -960,7 +958,7 @@ function MultiplayerAuctionArena({
               <Users className="w-5 h-5 text-orange-500" />
               Teams ({teams.filter(t => t.players.length > 0 || t.id === localTeamId).length})
             </h3>
-            
+
             {/* View Teams Button */}
             <Button
               onClick={() => router.push('/teams')}
@@ -1011,7 +1009,7 @@ function MultiplayerAuctionArena({
                   </div>
                   {highestBidder === localTeamId && (
                     <Badge className="bg-orange-500/20 text-orange-400 text-[9px] animate-pulse">
-                      🔨 BIDDING
+                      BIDDING
                     </Badge>
                   )}
                 </div>
@@ -1032,7 +1030,7 @@ function MultiplayerAuctionArena({
             {/* Hint */}
             <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg p-2">
               <p className="text-gray-400 text-[9px] text-center">
-                💡 Tap "View All Teams" button for complete squad details
+                Tap "View All Teams" button for complete squad details
               </p>
             </div>
           </div>
@@ -1081,7 +1079,7 @@ function MultiplayerAuctionArena({
                   size="sm"
                   className="text-white hover:bg-white/20"
                 >
-                  ✕
+                  ×
                 </Button>
               </div>
 
@@ -1242,7 +1240,7 @@ function MultiplayerAuctionArena({
             >
               {/* Glow effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500 rounded-3xl blur-3xl opacity-50 animate-pulse" />
-              
+
               <motion.div
                 animate={{
                   y: [0, -10, 0],
@@ -1261,7 +1259,7 @@ function MultiplayerAuctionArena({
                   transition={{ duration: 1, repeat: Infinity, repeatDelay: 1 }}
                   className="absolute inset-0 flex items-center justify-center"
                 >
-                  <div className="text-6xl">🎉</div>
+                  <div className="text-6xl"></div>
                 </motion.div>
 
                 <motion.div
@@ -1320,7 +1318,7 @@ function MultiplayerAuctionArena({
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Sale History Modal */}
       <SaleHistory
         saleHistory={saleHistory}

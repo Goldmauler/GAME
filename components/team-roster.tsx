@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { Target, Zap, Award, Shield, Users } from "lucide-react"
 
 interface Player {
   id: string
@@ -33,15 +34,15 @@ export default function TeamRoster({ teams, selectedTeamId, onTeamSelect }: Team
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "Batsman":
-        return "🏏"
+        return <Target className="w-4 h-4 inline" />
       case "Bowler":
-        return "⚾"
+        return <Zap className="w-4 h-4 inline" />
       case "All-rounder":
-        return "🌟"
+        return <Award className="w-4 h-4 inline" />
       case "Wicket-keeper":
-        return "🧤"
+        return <Shield className="w-4 h-4 inline" />
       default:
-        return "👤"
+        return <Users className="w-4 h-4 inline" />
     }
   }
 

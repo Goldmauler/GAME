@@ -37,7 +37,7 @@ interface RoomState {
   phase: 'lobby' | 'countdown' | 'active' | 'completed'
   takenTeams: string[]
   availableTeams: Team[]
-  players?: Array<{userName: string, userId: string, teamId?: string, teamName?: string, isHost: boolean}>
+  players?: Array<{ userName: string, userId: string, teamId?: string, teamName?: string, isHost: boolean }>
   canStart: boolean
 }
 
@@ -74,8 +74,8 @@ export default function RoomPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
-  const [joinedPlayers, setJoinedPlayers] = useState<Array<{userName: string, userId: string, teamId?: string, teamName?: string, isHost: boolean}>>([])
-  
+  const [joinedPlayers, setJoinedPlayers] = useState<Array<{ userName: string, userId: string, teamId?: string, teamName?: string, isHost: boolean }>>([])
+
   // Auction state
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null)
@@ -88,20 +88,20 @@ export default function RoomPage() {
     // First check if there's a stored connection with userId
     const storedConnection = localStorage.getItem('auctionConnection')
     let connectionUserId: string | null = null
-    
+
     if (storedConnection) {
       try {
         const connectionInfo = JSON.parse(storedConnection)
         if (connectionInfo.roomCode === roomCode) {
           // Use the same userId from the connection
           connectionUserId = connectionInfo.userId
-          console.log('🔄 Using stored userId for reconnection:', connectionUserId)
+          console.log('Using stored userId for reconnection:', connectionUserId)
         }
       } catch (e) {
         console.error('Error parsing connection info:', e)
       }
     }
-    
+
     // Use stored connection userId, or fall back to localStorage userId, or generate new one
     let id = connectionUserId || localStorage.getItem('userId')
     if (!id) {
@@ -114,14 +114,14 @@ export default function RoomPage() {
     if (savedName) {
       setUserName(savedName)
     }
-    
+
     // Check for stored connection info for auto-rejoin
     if (storedConnection) {
       try {
         const connectionInfo = JSON.parse(storedConnection)
         // If this is the same room, prepare for reconnection
         if (connectionInfo.roomCode === roomCode) {
-          console.log('🔄 Found stored connection for this room, preparing to rejoin...')
+          console.log('Found stored connection, preparing to rejoin...')
           setUserName(connectionInfo.userName)
           // Auto-join will be triggered after WebSocket connects
         }
@@ -148,33 +148,33 @@ export default function RoomPage() {
     try {
       // Determine WebSocket URL based on how user is accessing the app
       let wsUrl: string
-      
+
       if (typeof window !== 'undefined') {
         const hostname = window.location.hostname
-        
-        console.log('🔍 Detecting WebSocket URL...')
+
+        console.log('Detecting WebSocket URL...')
         console.log('   Current hostname:', hostname)
-        
+
         // If accessing via localhost
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           wsUrl = 'ws://localhost:8080'
-          console.log('   ✅ Using local WebSocket:', wsUrl)
-        } 
+          console.log('   Using local WebSocket:', wsUrl)
+        }
         // If accessing via ngrok (internet)
         else if (hostname.includes('ngrok')) {
           // Use the WebSocket ngrok tunnel
           wsUrl = 'wss://sheathier-achromatous-meredith.ngrok-free.dev'
-          console.log('   ✅ Using ngrok WebSocket:', wsUrl)
-        } 
+          console.log('   Using ngrok WebSocket:', wsUrl)
+        }
         // If accessing via local network IP
         else {
           wsUrl = 'ws://192.168.56.1:8080'
-          console.log('   ✅ Using network WebSocket:', wsUrl)
+          console.log('   Using network WebSocket:', wsUrl)
         }
       } else {
         wsUrl = 'ws://localhost:8080'
       }
-      
+
       console.log('Connecting to WebSocket:', wsUrl)
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
@@ -183,22 +183,22 @@ export default function RoomPage() {
         console.log('Connected to auction server')
         setConnected(true)
         setReconnecting(false)
-        
+
         // Check if we should auto-rejoin
         const storedConnection = localStorage.getItem('auctionConnection')
         if (storedConnection && userName) {
           try {
             const connectionInfo = JSON.parse(storedConnection)
             const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
-            
+
             // If same room and within 2 minutes, auto-rejoin
             if (connectionInfo.roomCode === roomCode && timeSinceDisconnect < 2 * 60 * 1000) {
-              console.log('🔄 Auto-rejoining room...')
+              console.log('Auto-rejoining room...')
               console.log('   Room Code:', connectionInfo.roomCode)
               console.log('   User Name:', connectionInfo.userName)
               console.log('   User ID:', connectionInfo.userId)
               console.log('   Time Since Disconnect:', Math.floor(timeSinceDisconnect / 1000), 'seconds')
-              
+
               setTimeout(() => {
                 if (ws.readyState === WebSocket.OPEN) {
                   ws.send(JSON.stringify({
@@ -210,11 +210,11 @@ export default function RoomPage() {
                       isReconnecting: true
                     },
                   }))
-                  console.log('✅ Sent auto-rejoin request')
+                  console.log('Sent auto-rejoin request')
                 }
               }, 500) // Small delay to ensure connection is stable
             } else {
-              console.log('❌ Cannot auto-rejoin:')
+              console.log('Cannot auto-rejoin:')
               if (connectionInfo.roomCode !== roomCode) {
                 console.log('   Different room:', connectionInfo.roomCode, 'vs', roomCode)
               }
@@ -238,7 +238,7 @@ export default function RoomPage() {
       }
 
       ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error)
+        console.error('WebSocket error:', error)
         console.error('   Tried to connect to:', wsUrl)
         toast({
           title: 'Connection Error',
@@ -250,7 +250,7 @@ export default function RoomPage() {
       ws.onclose = () => {
         console.log('Disconnected from auction server')
         setConnected(false)
-        
+
         // Attempt reconnection
         if (!reconnecting) {
           setReconnecting(true)
@@ -282,16 +282,16 @@ export default function RoomPage() {
           description: `Welcome to room ${roomCode}!`,
         })
         break
-        
+
       case 'reconnected':
-        console.log('✅ Successfully reconnected!')
+        console.log('Successfully reconnected!')
         setHasJoined(true)
         setRoomState(msg.payload.roomInfo)
         setTeams(msg.payload.availableTeams || [])
         setIsHost(msg.payload.isHost || false)
         setSelectedTeamId(msg.payload.teamId || '')
         setInWaitingLobby(!!msg.payload.teamId)
-        
+
         // Restore auction state if active
         if (msg.payload.auctionState) {
           setAuctionState(msg.payload.auctionState)
@@ -299,12 +299,12 @@ export default function RoomPage() {
             setCurrentPlayer(msg.payload.currentPlayer)
           }
         }
-        
+
         // Store joined players list
         if (msg.payload.roomInfo.players) {
           setJoinedPlayers(msg.payload.roomInfo.players)
         }
-        
+
         toast({
           title: 'Reconnected!',
           description: msg.payload.message || 'Successfully rejoined the room',
@@ -321,7 +321,7 @@ export default function RoomPage() {
         break
 
       case 'team-selected':
-        console.log('📨 Received team-selected message:', msg.payload)
+        console.log('Received team-selected message:', msg.payload)
         setSelectedTeamId(msg.payload.teamId)
         setInWaitingLobby(true) // Move to waiting lobby after team selection
         localStorage.setItem('selectedTeamId', msg.payload.teamId)
@@ -372,7 +372,7 @@ export default function RoomPage() {
         const { teams: serverTeams, auctionState: serverAuction, roomCode: rc } = msg.payload
         setTeams(serverTeams || [])
         setAuctionState(serverAuction)
-        
+
         if (serverAuction && serverAuction.phase === 'active') {
           setRoomState(prev => prev ? { ...prev, phase: 'active' } : null)
         }
@@ -394,7 +394,7 @@ export default function RoomPage() {
           variant: 'destructive',
         })
         break
-        
+
       case 'player_disconnected':
         toast({
           title: 'Player Disconnected',
@@ -402,20 +402,35 @@ export default function RoomPage() {
           variant: 'default',
         })
         break
-        
+
       case 'player_reconnected':
         toast({
           title: 'Player Reconnected',
           description: msg.payload.message,
         })
         break
-        
+
       case 'player_removed':
-        toast({
-          title: 'Player Removed',
-          description: msg.payload.message,
-          variant: 'destructive',
-        })
+        const { userName: removedUser } = msg.payload
+        // Check if the current user was removed
+        if (removedUser === userName) {
+          console.log('You were removed from the room')
+          localStorage.removeItem('auctionConnection')
+          toast({
+            title: 'Session Expired',
+            description: 'You were removed due to inactivity. Redirecting to home...',
+            variant: 'destructive',
+          })
+          setTimeout(() => {
+            router.push('/')
+          }, 2000)
+        } else {
+          toast({
+            title: 'Player Removed',
+            description: msg.payload.message,
+            variant: 'destructive',
+          })
+        }
         break
     }
   }
@@ -436,24 +451,24 @@ export default function RoomPage() {
       // Check if this is a reconnection attempt
       const storedConnection = localStorage.getItem('auctionConnection')
       let isReconnecting = false
-      
+
       if (storedConnection) {
         try {
           const connectionInfo = JSON.parse(storedConnection)
           const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
-          
+
           // If same room and within 2 minutes, this is a reconnection
-          if (connectionInfo.roomCode === roomCode && 
-              connectionInfo.userId === userId &&
-              timeSinceDisconnect < 2 * 60 * 1000) {
+          if (connectionInfo.roomCode === roomCode &&
+            connectionInfo.userId === userId &&
+            timeSinceDisconnect < 2 * 60 * 1000) {
             isReconnecting = true
-            console.log('🔄 Rejoining room with reconnection flag')
+            console.log('Rejoining room with reconnection flag')
           }
         } catch (e) {
           console.error('Error checking reconnection status:', e)
         }
       }
-      
+
       wsRef.current.send(JSON.stringify({
         type: 'join-room',
         payload: {
@@ -468,11 +483,11 @@ export default function RoomPage() {
 
   // Team selection handler
   const handleSelectTeam = (teamId: string) => {
-    console.log('🎯 handleSelectTeam called with teamId:', teamId)
-    console.log('🔌 WebSocket state:', wsRef.current?.readyState)
-    
+    console.log('handleSelectTeam called with teamId:', teamId)
+    console.log('WebSocket state:', wsRef.current?.readyState)
+
     if (!wsRef.current) {
-      console.error('❌ No WebSocket connection!')
+      console.error('ERROR: No WebSocket connection!')
       toast({
         title: 'Connection Error',
         description: 'Not connected to server',
@@ -480,9 +495,9 @@ export default function RoomPage() {
       })
       return
     }
-    
+
     if (wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('❌ WebSocket not open! State:', wsRef.current.readyState)
+      console.error('ERROR: WebSocket not open! State:', wsRef.current.readyState)
       toast({
         title: 'Connection Error',
         description: 'WebSocket not ready',
@@ -490,8 +505,8 @@ export default function RoomPage() {
       })
       return
     }
-    
-    console.log('✅ Sending select-team message...')
+
+    console.log('Sending select-team message...')
     wsRef.current.send(JSON.stringify({
       type: 'select-team',
       payload: { teamId },
@@ -581,7 +596,9 @@ export default function RoomPage() {
           <Card>
             <CardContent className="p-8">
               <div className="text-center mb-6">
-                <div className="text-5xl mb-4">🏏</div>
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-500/20 mb-4">
+                  <Trophy className="w-10 h-10 text-orange-500" />
+                </div>
                 <h1 className="text-3xl font-bold mb-2">Join Auction Room</h1>
                 <p className="text-muted-foreground">Room Code: <span className="font-mono font-bold text-orange-500">{roomCode}</span></p>
               </div>
@@ -622,7 +639,7 @@ export default function RoomPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-3">
-                <span className="text-4xl">🏏</span>
+                <Trophy className="w-8 h-8 text-orange-500" />
                 {inWaitingLobby ? 'Waiting Lobby' : 'Select Your Team'}
               </h1>
               <p className="text-muted-foreground">Room: <span className="font-mono font-bold text-orange-500">{roomCode}</span></p>
@@ -651,13 +668,12 @@ export default function RoomPage() {
                         whileTap={!isTaken ? { scale: 0.95 } : {}}
                       >
                         <Card
-                          className={`cursor-pointer transition-all ${
-                            isSelected
+                          className={`cursor-pointer transition-all ${isSelected
                               ? 'border-green-500 border-2 bg-green-500/10'
                               : isTaken
-                              ? 'opacity-50 cursor-not-allowed border-red-500'
-                              : 'hover:border-orange-500'
-                          }`}
+                                ? 'opacity-50 cursor-not-allowed border-red-500'
+                                : 'hover:border-orange-500'
+                            }`}
                           onClick={() => !isTaken && handleSelectTeam(team.id)}
                         >
                           <CardContent className="p-4 text-center">
@@ -699,187 +715,187 @@ export default function RoomPage() {
           {/* Waiting Lobby */}
           {inWaitingLobby && (
             <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <Users className="h-8 w-8 text-blue-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Players</p>
-                    <p className="text-2xl font-bold">{roomState.playerCount}/{roomState.maxPlayers}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <Trophy className="h-8 w-8 text-yellow-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Min Teams</p>
-                    <p className="text-2xl font-bold">{roomState.minTeams}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <User className="h-8 w-8 text-green-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Host</p>
-                    <p className="text-lg font-bold truncate">{roomState.hostName}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-8 w-8 text-orange-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <p className="text-lg font-bold">
-                      {roomState.phase === 'countdown' ? `Starting in ${auctionState?.countdownSeconds}s` : 'Waiting'}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Players List */}
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Users className="h-6 w-6" />
-                Players in Lobby ({roomState.playerCount}/{roomState.maxPlayers})
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {joinedPlayers.length > 0 ? (
-                  // Show actual players from server data
-                  joinedPlayers.map((player, i) => (
-                    <div
-                      key={player.userId}
-                      className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center font-bold text-white">
-                        {i + 1}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Users className="h-8 w-8 text-blue-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Players</p>
+                        <p className="text-2xl font-bold">{roomState.playerCount}/{roomState.maxPlayers}</p>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-semibold">{player.userName}</p>
-                        <div className="flex gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {player.isHost ? '👑 Host' : 'Guest'}
-                          </Badge>
-                          {player.teamName && (
-                            <Badge className="text-xs bg-blue-500">
-                              {player.teamName}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Trophy className="h-8 w-8 text-yellow-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Min Teams</p>
+                        <p className="text-2xl font-bold">{roomState.minTeams}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <User className="h-8 w-8 text-green-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Host</p>
+                        <p className="text-lg font-bold truncate">{roomState.hostName}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-8 w-8 text-orange-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Status</p>
+                        <p className="text-lg font-bold">
+                          {roomState.phase === 'countdown' ? `Starting in ${auctionState?.countdownSeconds}s` : 'Waiting'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Players List */}
+              <Card className="mb-6">
+                <CardContent className="p-6">
+                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                    <Users className="h-6 w-6" />
+                    Players in Lobby ({roomState.playerCount}/{roomState.maxPlayers})
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {joinedPlayers.length > 0 ? (
+                      // Show actual players from server data
+                      joinedPlayers.map((player, i) => (
+                        <div
+                          key={player.userId}
+                          className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center font-bold text-white">
+                            {i + 1}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-semibold">{player.userName}</p>
+                            <div className="flex gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {player.isHost ? 'Host' : 'Guest'}
+                              </Badge>
+                              {player.teamName && (
+                                <Badge className="text-xs bg-blue-500">
+                                  {player.teamName}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      // Fallback to generic list if players data not yet loaded
+                      Array.from({ length: roomState.playerCount }, (_, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center font-bold text-white">
+                            {i + 1}
+                          </div>
+                          <div>
+                            <p className="font-semibold">Player {i + 1}</p>
+                            <Badge variant="outline" className="text-xs">
+                              {i === 0 ? 'Host' : 'Guest'}
                             </Badge>
-                          )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {/* Empty slots */}
+                    {Array.from({ length: roomState.maxPlayers - roomState.playerCount }, (_, i) => (
+                      <div
+                        key={`empty-${i}`}
+                        className="flex items-center gap-3 p-3 bg-slate-900 rounded-lg border border-dashed border-slate-700"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-600">
+                          {roomState.playerCount + i + 1}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-600">Waiting...</p>
+                          <Badge variant="outline" className="text-xs text-slate-600">Empty</Badge>
                         </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  // Fallback to generic list if players data not yet loaded
-                  Array.from({ length: roomState.playerCount }, (_, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center font-bold text-white">
-                        {i + 1}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Team Selection - Only show if player hasn't selected a team yet */}
+
+              {/* Start Button Section - Placed directly after player list */}
+              <div className="mt-6">
+                {/* Host sees start button when minimum players joined */}
+                {isHost && (
+                  <div className="text-center">
+                    {roomState.playerCount >= roomState.minTeams ? (
+                      <div className="space-y-4">
+                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+                          <p className="text-green-500 font-semibold">
+                            ✓ Ready to start! {roomState.playerCount} players joined (minimum: {roomState.minTeams})
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleStartAuction}
+                          size="lg"
+                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-xl px-8 py-6"
+                          disabled={roomState.phase === 'countdown'}
+                        >
+                          <Play className="mr-2 h-6 w-6" />
+                          {roomState.phase === 'countdown' ? `Starting in ${auctionState?.countdownSeconds}s...` : 'Start Auction'}
+                        </Button>
                       </div>
-                      <div>
-                        <p className="font-semibold">Player {i + 1}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {i === 0 ? 'Host' : 'Guest'}
-                        </Badge>
+                    ) : (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                        <p className="text-yellow-500 font-semibold">
+                          Waiting for players... ({roomState.playerCount}/{roomState.minTeams} minimum)
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Need at least {roomState.minTeams} players to start the auction
+                        </p>
                       </div>
-                    </div>
-                  ))
+                    )}
+                  </div>
                 )}
-                {/* Empty slots */}
-                {Array.from({ length: roomState.maxPlayers - roomState.playerCount }, (_, i) => (
-                  <div
-                    key={`empty-${i}`}
-                    className="flex items-center gap-3 p-3 bg-slate-900 rounded-lg border border-dashed border-slate-700"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-600">
-                      {roomState.playerCount + i + 1}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-600">Waiting...</p>
-                      <Badge variant="outline" className="text-xs text-slate-600">Empty</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Team Selection - Only show if player hasn't selected a team yet */}
-
-          {/* Start Button Section - Placed directly after player list */}
-          <div className="mt-6">
-            {/* Host sees start button when minimum players joined */}
-            {isHost && (
-              <div className="text-center">
-                {roomState.playerCount >= roomState.minTeams ? (
-                  <div className="space-y-4">
-                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
-                      <p className="text-green-500 font-semibold">
-                        ✓ Ready to start! {roomState.playerCount} players joined (minimum: {roomState.minTeams})
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleStartAuction}
-                      size="lg"
-                      className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-xl px-8 py-6"
-                      disabled={roomState.phase === 'countdown'}
-                    >
-                      <Play className="mr-2 h-6 w-6" />
-                      {roomState.phase === 'countdown' ? `Starting in ${auctionState?.countdownSeconds}s...` : 'Start Auction'}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                    <p className="text-yellow-500 font-semibold">
-                      Waiting for players... ({roomState.playerCount}/{roomState.minTeams} minimum)
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Need at least {roomState.minTeams} players to start the auction
-                    </p>
+                {/* Non-host sees waiting message */}
+                {!isHost && (
+                  <div className="text-center">
+                    {roomState.playerCount >= roomState.minTeams ? (
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                        <p className="text-blue-500 font-semibold">
+                          {roomState.phase === 'countdown'
+                            ? `Auction starting in ${auctionState?.countdownSeconds}s...`
+                            : 'Waiting for host to start the auction...'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                        <p className="text-yellow-500 font-semibold">
+                          Waiting for more players... ({roomState.playerCount}/{roomState.minTeams} minimum)
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-
-            {/* Non-host sees waiting message */}
-            {!isHost && (
-              <div className="text-center">
-                {roomState.playerCount >= roomState.minTeams ? (
-                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                    <p className="text-blue-500 font-semibold">
-                      {roomState.phase === 'countdown' 
-                        ? `Auction starting in ${auctionState?.countdownSeconds}s...`
-                        : 'Waiting for host to start the auction...'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                    <p className="text-yellow-500 font-semibold">
-                      Waiting for more players... ({roomState.playerCount}/{roomState.minTeams} minimum)
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
             </div>
           )}
         </div>
@@ -893,7 +909,10 @@ export default function RoomPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold mb-2">🏏 Live Auction</h1>
+            <h1 className="text-4xl font-bold mb-2 flex items-center justify-center gap-3">
+              <Trophy className="w-10 h-10 text-orange-500" />
+              Live Auction
+            </h1>
             <p className="text-muted-foreground">Room: {roomCode}</p>
           </div>
 
@@ -966,8 +985,11 @@ export default function RoomPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold mb-6">🏆 Auction Complete!</h1>
-          
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <Trophy className="w-12 h-12 text-yellow-500" />
+            <h1 className="text-4xl font-bold">Auction Complete!</h1>
+          </div>
+
           <Card>
             <CardContent className="p-8">
               <h2 className="text-2xl font-bold mb-4">Final Standings</h2>

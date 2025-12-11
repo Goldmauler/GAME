@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
-import { X, TrendingUp, Award, Target, Activity } from "lucide-react"
+import { X, TrendingUp, Award, Target, Activity, Zap, Users, Shield } from "lucide-react"
 import { fetchPlayerStats, getCountryFlag, type PlayerStats } from "@/lib/cricket-api"
 
 interface Player {
@@ -16,7 +16,7 @@ interface Player {
 }
 
 interface PlayerAnalysisEnhancedProps {
-   player: Player
+  player: Player
   onClose: () => void
 }
 
@@ -34,18 +34,18 @@ export default function PlayerAnalysisEnhanced({ player, onClose }: PlayerAnalys
     setLoading(true)
     setError(null)
     setImageError(false)
-    
+
     try {
-      console.log(`🔍 Fetching stats for: ${player.name}`)
-      
+      console.log(`Fetching stats for: ${player.name}`)
+
       // Fetch player stats
       const stats = await fetchPlayerStats(player.name, player.role, player.basePrice)
       setPlayerStats(stats)
-      console.log('✅ Player stats loaded:', stats)
-      
+      console.log('Player stats loaded:', stats)
+
       setLoading(false)
     } catch (err) {
-      console.error('❌ Error loading player data:', err)
+      console.error('ERROR: Error loading player data:', err)
       setError('Failed to load player data')
       setLoading(false)
     }
@@ -63,11 +63,11 @@ export default function PlayerAnalysisEnhanced({ player, onClose }: PlayerAnalys
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case "Batsman": return "🏏"
-      case "Bowler": return "⚡"
-      case "All-rounder": return "💪"
-      case "Wicket-keeper": return "🧤"
-      default: return "🎯"
+      case "Batsman": return <Target className="w-4 h-4 inline" />
+      case "Bowler": return <Zap className="w-4 h-4 inline" />
+      case "All-rounder": return <Award className="w-4 h-4 inline" />
+      case "Wicket-keeper": return <Shield className="w-4 h-4 inline" />
+      default: return <Users className="w-4 h-4 inline" />
     }
   }
 
@@ -172,7 +172,6 @@ export default function PlayerAnalysisEnhanced({ player, onClose }: PlayerAnalys
                         </div>
                       )}
                     </div>
-
                     {/* Auction Info */}
                     <div className="grid grid-cols-2 gap-4 mt-4">
                       <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-3">
@@ -195,7 +194,7 @@ export default function PlayerAnalysisEnhanced({ player, onClose }: PlayerAnalys
                     <Activity className="w-5 h-5 text-orange-500" />
                     <h4 className="text-xl font-bold text-white">Career Statistics</h4>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-slate-700/50 rounded-lg p-4 text-center">
                       <p className="text-gray-400 text-sm mb-2">Matches</p>
@@ -257,7 +256,7 @@ export default function PlayerAnalysisEnhanced({ player, onClose }: PlayerAnalys
                       <TrendingUp className="w-5 h-5 text-orange-500" />
                       <h4 className="text-xl font-bold text-white">Recent Form</h4>
                     </div>
-                    
+
                     <div className="space-y-2">
                       {playerStats.recentForm.map((match, idx) => (
                         <div key={idx} className="flex items-center justify-between bg-slate-700/30 rounded-lg p-3 hover:bg-slate-700/50 transition-colors">
@@ -283,7 +282,7 @@ export default function PlayerAnalysisEnhanced({ player, onClose }: PlayerAnalys
                     <Award className="w-5 h-5 text-orange-500" />
                     <h4 className="text-xl font-bold text-white">Value Assessment</h4>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-gray-300 text-sm mb-2">Experience Level</p>

@@ -1,12 +1,10 @@
 "use client"
-
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, Crown, CheckCircle2, Clock, Play } from "lucide-react"
-
 interface Player {
   teamId: string
   teamName: string
@@ -14,7 +12,6 @@ interface Player {
   ready: boolean
   isHost: boolean
 }
-
 interface WaitingLobbyProps {
   roomCode: string
   localTeamId: string
@@ -66,7 +63,6 @@ export default function WaitingLobby({
       }
     }
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
       <div className="max-w-6xl mx-auto">
@@ -76,10 +72,10 @@ export default function WaitingLobby({
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-4">
-            🏏 WAITING LOBBY
+          <h1 className="text-4xl font-bold text-orange-500 mb-4">
+            WAITING LOBBY
           </h1>
-          
+
           {/* Room Code Display */}
           <div className="inline-block bg-slate-800/50 border border-orange-500/50 rounded-xl px-8 py-4 mb-4">
             <p className="text-sm text-gray-400 mb-1">Room Code</p>
@@ -146,11 +142,10 @@ export default function WaitingLobby({
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ delay: idx * 0.1 }}
-                  className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
-                    player.teamId === localTeamId
+                  className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${player.teamId === localTeamId
                       ? "bg-orange-500/20 border-orange-500"
                       : "bg-slate-700/30 border-slate-600"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-4">
                     {/* Player Avatar/Icon */}
@@ -214,11 +209,10 @@ export default function WaitingLobby({
             onClick={onReady}
             disabled={!wsConnected}
             size="lg"
-            className={`text-xl px-8 py-6 ${
-              isReady
+            className={`text-xl px-8 py-6 ${isReady
                 ? "bg-green-600 hover:bg-green-700"
                 : "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
-            }`}
+              }`}
           >
             {isReady ? (
               <>
@@ -251,17 +245,17 @@ export default function WaitingLobby({
         <div className="mt-6 text-center">
           {isHost && players.length < 2 && (
             <p className="text-yellow-400 text-sm">
-              ⚠️ Need at least 2 players to start the auction
+              Need at least 2 players to start the auction
             </p>
           )}
           {isHost && !allReady && players.length >= 2 && (
             <p className="text-yellow-400 text-sm">
-              ⚠️ All players must be ready before starting
+              All players must be ready before starting
             </p>
           )}
           {!wsConnected && (
             <p className="text-red-400 text-sm">
-              ⚠️ WebSocket disconnected - reconnecting...
+              WebSocket disconnected - reconnecting...
             </p>
           )}
         </div>

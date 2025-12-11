@@ -94,7 +94,7 @@ export default function TeamShowcase({ onViewRankings }: { onViewRankings: () =>
                   <span>
                     Rating: <span className="text-orange-400 font-bold">{team.rating}/10</span>
                   </span>
-                  <span>⭐</span>
+                  <span></span>
                 </div>
               </motion.button>
             ))}

@@ -79,7 +79,7 @@ export default function Home() {
       <header className="relative z-10 border-b border-orange-500/20 py-4">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-3xl">🏏</div>
+            <div className="text-3xl"></div>
             <div>
               <h1 className="font-black text-2xl text-orange-500">IPL AUCTION</h1>
               <p className="text-xs text-gray-400">Franchise Building Game</p>
@@ -108,7 +108,7 @@ export default function Home() {
               transition={{ duration: 3, repeat: Infinity }}
               className="text-7xl mb-4"
             >
-              🏏
+              
             </motion.div>
             <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-500 to-red-500 mb-4">
               CRICKET AUCTION
@@ -119,9 +119,9 @@ export default function Home() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 mb-12 max-w-3xl mx-auto">
             {[
-              { icon: "👥", label: "10 Teams", value: "Compete" },
-              { icon: "🏏", label: "130+ Players", value: "Real IPL Stars" },
-              { icon: "💎", label: "25 per Team", value: "Squad Size" },
+              { icon: "", label: "10 Teams", value: "Compete" },
+              { icon: "", label: "130+ Players", value: "Real IPL Stars" },
+              { icon: "", label: "25 per Team", value: "Squad Size" },
             ].map((stat, idx) => (
               <motion.div
                 key={idx}

@@ -29,11 +29,11 @@ export async function GET(request: Request) {
       },
     })
 
-    console.log(`📊 Cricbuzz Response Status: ${response.status}`)
+    console.log(` Cricbuzz Response Status: ${response.status}`)
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Cricbuzz API Error: ${response.status} - ${errorText}`)
+      console.error(`ERROR: Cricbuzz API Error: ${response.status} - ${errorText}`)
       
       return NextResponse.json({
         success: false,
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     }
 
     const statsData = await response.json()
-    console.log(`✅ Cricbuzz Success: Player stats retrieved`)
+    console.log(` Cricbuzz Success: Player stats retrieved`)
     
     // Parse recent batting and bowling performances
     const formatStats = (statsData: any) => {
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
         bestBowling: 'N/A'
       } : null
       
-      console.log('📊 Parsed Stats:', { battingStats, bowlingStats })
+      console.log(' Parsed Stats:', { battingStats, bowlingStats })
       
       return {
         batting: battingStats,
@@ -148,7 +148,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString()
     })
   } catch (error: any) {
-    console.error('❌ Error fetching player stats:', error)
+    console.error('ERROR: Error fetching player stats:', error)
     return NextResponse.json(
       { 
         success: false, 

@@ -108,19 +108,19 @@ export function generateAchievements(rankings: TeamRankingData[]) {
     achievements[team.teamId] = []
 
     // Ranking badges
-    if (team.rank === 1) achievements[team.teamId].push("🏆 Champion")
-    if (team.rank <= 3) achievements[team.teamId].push("🥇 Top Contender")
-    if (team.rank <= 5) achievements[team.teamId].push("⭐ Playoff Spot")
+    if (team.rank === 1) achievements[team.teamId].push("Champion")
+    if (team.rank <= 3) achievements[team.teamId].push("Top Contender")
+    if (team.rank <= 5) achievements[team.teamId].push("Playoff Spot")
 
     // Performance badges
-    if (team.overallRating >= 8.5) achievements[team.teamId].push("💎 Elite Squad")
-    if (team.averagePlayerPrice > 70) achievements[team.teamId].push("👑 Premium Team")
-    if (team.playersCount === 25) achievements[team.teamId].push("✓ Complete Squad")
-    if (team.budgetSpent < 500) achievements[team.teamId].push("🎯 Budget Master")
+    if (team.overallRating >= 8.5) achievements[team.teamId].push("Elite Squad")
+    if (team.averagePlayerPrice > 70) achievements[team.teamId].push("Premium Team")
+    if (team.playersCount === 25) achievements[team.teamId].push("Complete Squad")
+    if (team.budgetSpent < 500) achievements[team.teamId].push("Budget Master")
 
     // Strategy badges
     if (team.playersCount >= 20 && team.averagePlayerPrice <= 40) {
-      achievements[team.teamId].push("🚀 Value Strategy")
+      achievements[team.teamId].push("Value Strategy")
     }
   })
 

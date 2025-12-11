@@ -37,10 +37,10 @@ export async function GET(request: Request) {
 
     if (cricbuzzResponse && cricbuzzResponse.ok) {
       const cricbuzzData = await cricbuzzResponse.json()
-      console.log(`📊 Cricbuzz Response:`, cricbuzzData)
+      console.log(` Cricbuzz Response:`, cricbuzzData)
       
       if (cricbuzzData.player && cricbuzzData.player.length > 0) {
-        console.log(`✅ Cricbuzz Success: Found ${cricbuzzData.player.length} players`)
+        console.log(` Cricbuzz Success: Found ${cricbuzzData.player.length} players`)
         
         // Transform Cricbuzz data to our format
         const players = cricbuzzData.player.map((p: any) => ({
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     }
 
     // Fallback to backup API
-    console.log('⚠️ Cricbuzz failed, trying backup API...')
+    console.log('WARNING: Cricbuzz failed, trying backup API...')
     const backupUrl = `${BACKUP_API_URL}/players?apikey=${BACKUP_API_KEY}&offset=0&search=${encodeURIComponent(playerName)}`
     console.log(`📡 Backup API URL: ${backupUrl.replace(BACKUP_API_KEY, 'API_KEY_HIDDEN')}`)
     
@@ -78,16 +78,16 @@ export async function GET(request: Request) {
       },
     })
 
-    console.log(`📊 Backup API Response Status: ${backupResponse.status}`)
+    console.log(` Backup API Response Status: ${backupResponse.status}`)
 
     if (!backupResponse.ok) {
       const errorText = await backupResponse.text()
-      console.error(`❌ Backup API Error: ${backupResponse.status} - ${errorText}`)
+      console.error(`ERROR: Backup API Error: ${backupResponse.status} - ${errorText}`)
       throw new Error(`Both APIs failed`)
     }
 
     const backupData = await backupResponse.json()
-    console.log(`✅ Backup API Success: Found ${backupData.data?.length || 0} players`)
+    console.log(` Backup API Success: Found ${backupData.data?.length || 0} players`)
     
     return NextResponse.json({
       success: true,
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString()
     })
   } catch (error: any) {
-    console.error('❌ Error fetching player data:', error)
+    console.error('ERROR: Error fetching player data:', error)
     return NextResponse.json(
       { 
         success: false, 
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
     })
 
     const data = await response.json()
-    console.log('📊 Cricbuzz Test Response:', data)
+    console.log(' Cricbuzz Test Response:', data)
     
     return NextResponse.json({
       apiKeyValid: response.ok,
