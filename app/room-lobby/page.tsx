@@ -25,32 +25,46 @@ export default function Home() {
     localStorage.setItem('userName', hostName)
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const host = window.location.hostname || 'localhost'
-      const ws = new WebSocket(`${protocol}://${host}:8080`)
+      // Use env variable or fallback to current host for deployment, localhost for dev
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 
+        (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+          ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8080`
+          : 'ws://localhost:8080')
+      console.log('Connecting to WebSocket:', wsUrl)
+      const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
+        console.log('WebSocket connected successfully')
         const userId = localStorage.getItem('userId') || `user-${Date.now()}`
         localStorage.setItem('userId', userId)
 
-        ws.send(JSON.stringify({
+        const message = {
           type: 'create-room',
           payload: { hostName, userId },
-        }))
+        }
+        console.log('Sending create-room message:', message)
+        ws.send(JSON.stringify(message))
       }
 
       ws.onmessage = (event) => {
+        console.log('Received message:', event.data)
         const msg = JSON.parse(event.data)
         if (msg.type === 'room-created') {
           const newRoomCode = msg.payload.roomCode
+          console.log('Room created:', newRoomCode)
           ws.close()
           router.push(`/room/${newRoomCode}`)
         }
       }
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error)
         alert('Failed to connect to server')
         setCreating(false)
+      }
+
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason)
       }
     } catch (error) {
       alert('Failed to create room')

@@ -517,13 +517,13 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
       </AnimatePresence>
 
       {/* Main Auction UI */}
-      <div className="min-h-screen py-8 px-4">
+      <div className="min-h-screen py-4 px-2 sm:py-8 sm:px-4">
         <div className="max-w-[1600px] mx-auto">
           {/* Main Auction Stage */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 border border-orange-500/30 mb-8 shadow-2xl"
+            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl sm:rounded-2xl p-3 sm:p-6 lg:p-8 border border-orange-500/30 mb-4 sm:mb-8 shadow-2xl"
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Player Card */}
@@ -548,16 +548,16 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                       View Details
                     </div>
                   </div>
-                  <div className="p-6 bg-slate-900">
-                    <h2 className="text-3xl font-black text-white mb-2">{currentPlayer?.name}</h2>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="px-3 py-1 bg-orange-500/30 border border-orange-500 text-orange-300 rounded-full text-sm font-bold">
+                  <div className="p-3 sm:p-6 bg-slate-900">
+                    <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1 sm:mb-2 truncate">{currentPlayer?.name}</h2>
+                    <div className="flex items-center justify-between mb-2 sm:mb-4">
+                      <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-500/30 border border-orange-500 text-orange-300 rounded-full text-xs sm:text-sm font-bold">
                         {currentPlayer?.role}
                       </span>
-                      <span className="text-gray-300">#{playerIndex + 1}/100</span>
+                      <span className="text-gray-300 text-xs sm:text-sm">#{playerIndex + 1}/100</span>
                     </div>
-                    <div className="text-sm text-gray-400">
-                      Base Price: <span className="text-orange-400 font-bold">₹{currentPlayer?.basePrice}Cr</span>
+                    <div className="text-xs sm:text-sm text-gray-400">
+                      Base: <span className="text-orange-400 font-bold">₹{currentPlayer?.basePrice}Cr</span>
                     </div>
                   </div>
                 </div>
@@ -569,18 +569,18 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                 <motion.div
                   animate={{ scale: [1, 1.02, 1] }}
                   transition={{ duration: 0.5, repeat: Number.POSITIVE_INFINITY }}
-                  className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-8 border border-orange-500/50"
+                  className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-4 sm:p-6 lg:p-8 border border-orange-500/50"
                 >
-                  <p className="text-gray-400 text-sm mb-2">CURRENT BID</p>
+                  <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">CURRENT BID</p>
                   <motion.div
                     key={currentBid.currentPrice}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="text-6xl font-black text-orange-500 mb-4"
+                    className="text-3xl sm:text-5xl lg:text-6xl font-black text-orange-500 mb-2 sm:mb-4"
                   >
                     ₹{currentBid.currentPrice}Cr
                   </motion.div>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2 sm:mb-4">
                     {highestBidderTeam ? (
                       <motion.div
                         key={highestBidderTeam.id}
@@ -626,13 +626,12 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
 
                 {/* Bid Buttons */}
                 {/* Your Team Controls */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-400">Your Team:</label>
-                    <div className="bg-slate-800 text-white px-4 py-2 rounded font-bold border border-orange-500/30">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    <label className="text-xs sm:text-sm text-gray-400 hidden sm:inline">Your Team:</label>
+                    <div className="bg-slate-800 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded font-bold border border-orange-500/30 text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">
                       {teams.find((t: Team) => t.id === localTeamId)?.name || "Not Selected"}
                     </div>
-                    <span className="text-xs text-yellow-400">Locked</span>
                   </div>
                   {!hasWithdrawn && currentBid.highestBidder !== localTeamId ? (
                     <button
@@ -640,50 +639,51 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                         const bidAmount = currentBid.currentPrice + 5
                         handleBid(localTeamId, bidAmount)
                       }}
-                      className="ml-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-bold transition-all"
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded font-bold transition-all text-xs sm:text-sm"
                       disabled={!localTeamId}
                     >
-                      Bid +₹5Cr (My Team)
+                      +₹5Cr
                     </button>
                   ) : hasWithdrawn ? (
-                    <span className="ml-2 text-yellow-400 text-sm font-medium px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
-                      ⏸️ Withdrawn from this bid
+                    <span className="text-yellow-400 text-xs font-medium px-2 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                      ⏸️ Withdrawn
                     </span>
                   ) : (
-                    <span className="ml-2 text-green-400 text-sm font-medium px-3 py-2 bg-green-500/10 border border-green-500/30 rounded">
-                      ✓ You're winning!
+                    <span className="text-green-400 text-xs font-medium px-2 py-1.5 bg-green-500/10 border border-green-500/30 rounded">
+                      ✓ Winning!
                     </span>
                   )}
-                  <div className="ml-auto text-sm text-gray-400">WS: {wsConnected ? "Connected" : "Offline"}</div>
+                  <div className="ml-auto text-xs text-gray-400 hidden sm:block">WS: {wsConnected ? "✓" : "✗"}</div>
                 </div>
 
                 {/* Withdraw & End Auction Controls */}
-                <div className="flex gap-3 mb-4">
+                <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4">
                   {/* Withdraw Button */}
                   <button
                     onClick={handleWithdraw}
                     disabled={hasWithdrawn || currentBid.highestBidder === localTeamId}
-                    className={`flex items-center gap-2 px-4 py-2 rounded font-bold transition-all ${
+                    className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded font-bold transition-all text-xs sm:text-sm ${
                       hasWithdrawn || currentBid.highestBidder === localTeamId
                         ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
                         : 'bg-yellow-600 hover:bg-yellow-700 text-white'
                     }`}
                   >
-                    <span>⏸️</span>
-                    {hasWithdrawn ? 'Withdrawn' : currentBid.highestBidder === localTeamId ? "Can't Withdraw" : 'Withdraw'}
+                    <span className="text-sm">⏸️</span>
+                    <span className="hidden sm:inline">{hasWithdrawn ? 'Withdrawn' : currentBid.highestBidder === localTeamId ? "Can't" : 'Withdraw'}</span>
                   </button>
 
                   {/* End Auction Button */}
                   <button
                     onClick={() => setShowEndAuctionModal(true)}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold transition-all ml-auto"
+                    className="flex items-center gap-1 sm:gap-2 bg-red-600 hover:bg-red-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded font-bold transition-all text-xs sm:text-sm ml-auto"
                   >
-                    <span>🛑</span>
-                    End Auction
+                    <span className="text-sm">🛑</span>
+                    <span className="hidden sm:inline">End Auction</span>
+                    <span className="sm:hidden">End</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
                   {[1, 2, 3, 4].map((multiplier) => (
                     <motion.button
                       key={multiplier}
@@ -697,7 +697,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                           handleBid(randomTeam.id, bidAmount)
                         }
                       }}
-                      className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 border border-orange-500/30 hover:border-orange-500 rounded-lg py-3 px-4 font-bold text-orange-400 transition-all"
+                      className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 border border-orange-500/30 hover:border-orange-500 rounded-lg py-2 sm:py-3 px-2 sm:px-4 font-bold text-orange-400 transition-all text-xs sm:text-sm"
                     >
                       +₹{multiplier * 5}L
                     </motion.button>
@@ -746,7 +746,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
           )}
 
           {/* Teams Grid with Activity Indicator */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-8">
             {teams.map((team: Team, idx: number) => {
               const isLeading = team.id === currentBid.highestBidder
               const justBid = team.id === lastBidTeam
@@ -756,7 +756,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
-                  className={`bg-gradient-to-br ${team.color} rounded-lg p-4 border-2 transition-all relative overflow-hidden ${isLeading
+                  className={`bg-gradient-to-br ${team.color} rounded-lg p-2 sm:p-4 border-2 transition-all relative overflow-hidden ${isLeading
                       ? "border-yellow-400 shadow-2xl shadow-yellow-400/50"
                       : justBid
                         ? "border-orange-400 shadow-lg shadow-orange-400/30"
@@ -771,16 +771,16 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                       className="absolute top-2 right-2 w-3 h-3 bg-orange-400 rounded-full"
                     />
                   )}
-                  <h3 className="font-bold text-white text-sm truncate mb-2">{team.name}</h3>
-                  <div className="space-y-1 text-xs text-white/80">
+                  <h3 className="font-bold text-white text-xs sm:text-sm truncate mb-1 sm:mb-2 pr-6">{team.name}</h3>
+                  <div className="space-y-0.5 sm:space-y-1 text-[10px] sm:text-xs text-white/80">
                     <p>
-                      Players: <span className="font-bold">{team.players.length}/25</span>
+                      <span className="font-bold">{team.players.length}/25</span>
                     </p>
                     <p>
-                      Budget: <span className="font-bold">₹{team.budget}Cr</span>
+                      <span className="font-bold">₹{team.budget}Cr</span>
                     </p>
                     {team.id === localTeamId && (
-                      <div className="absolute top-2 left-2 bg-indigo-700 text-white text-xs font-bold px-2 py-1 rounded">YOU</div>
+                      <div className="absolute top-1 sm:top-2 left-1 sm:left-2 bg-indigo-700 text-white text-[8px] sm:text-xs font-bold px-1 sm:px-2 py-0.5 sm:py-1 rounded">YOU</div>
                     )}
                     {isLeading && (
                       <motion.p
@@ -809,10 +809,10 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-slate-800 rounded-lg p-6 border border-orange-500/20 mb-8"
+              className="bg-slate-800 rounded-lg p-3 sm:p-6 border border-orange-500/20 mb-4 sm:mb-8"
             >
-              <h3 className="font-bold text-orange-400 mb-4">Bid History</h3>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
+              <h3 className="font-bold text-orange-400 mb-2 sm:mb-4 text-sm sm:text-base">Bid History</h3>
+              <div className="space-y-1.5 sm:space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
                 <AnimatePresence>
                   {currentBid.bidHistory.map((bid: BidRecord, idx: number) => {
                     const bidTeam = teams.find((t: Team) => t.id === bid.team)
@@ -822,7 +822,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 20 }}
-                        className="flex items-center justify-between bg-slate-700/50 p-3 rounded-lg text-sm"
+                        className="flex items-center justify-between bg-slate-700/50 p-2 sm:p-3 rounded-lg text-xs sm:text-sm"
                       >
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${bidTeam?.color}`}></div>
@@ -838,10 +838,10 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
           )}
 
           {/* Progress */}
-          <motion.div className="bg-slate-800 rounded-lg p-4 border border-orange-500/20 mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-400">Auction Progress</span>
-              <span className="text-orange-500 font-bold">{playerIndex + 1}/100</span>
+          <motion.div className="bg-slate-800 rounded-lg p-3 sm:p-4 border border-orange-500/20 mb-4 sm:mb-8">
+            <div className="flex items-center justify-between mb-1 sm:mb-2">
+              <span className="text-gray-400 text-xs sm:text-sm">Progress</span>
+              <span className="text-orange-500 font-bold text-xs sm:text-sm">{playerIndex + 1}/100</span>
             </div>
             <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
               <motion.div
@@ -857,33 +857,34 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-orange-500/30 shadow-2xl"
+            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-orange-500/30 shadow-2xl"
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-black text-white flex items-center gap-3">
-                <span className="text-3xl"></span>
-                Teams Overview
+            <div className="flex items-center justify-between mb-3 sm:mb-6">
+              <h2 className="text-lg sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3">
+                <span className="text-xl sm:text-3xl">🏆</span>
+                <span className="hidden sm:inline">Teams Overview</span>
+                <span className="sm:hidden">Teams</span>
               </h2>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowTeamsTable(!showTeamsTable)}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold transition-all"
+                  className="px-2 sm:px-4 py-1.5 sm:py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold transition-all text-xs sm:text-sm"
                 >
                   {showTeamsTable ? 'Hide Details' : 'Show Details'}
                 </button>
               </div>
             </div>
 
-            {/* Compact Teams Table */}
-            <div className="overflow-x-auto">
+            {/* Compact Teams Table - Hidden on mobile, shown on tablet+ */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="text-left py-3 px-4 text-gray-400 font-semibold text-sm">Team</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-semibold text-sm">Players</th>
-                    <th className="text-right py-3 px-4 text-gray-400 font-semibold text-sm">Budget Left</th>
-                    <th className="text-right py-3 px-4 text-gray-400 font-semibold text-sm">Spent</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-semibold text-sm">Action</th>
+                    <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-gray-400 font-semibold text-xs sm:text-sm">Team</th>
+                    <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-400 font-semibold text-xs sm:text-sm">Players</th>
+                    <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-gray-400 font-semibold text-xs sm:text-sm">Budget</th>
+                    <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-gray-400 font-semibold text-xs sm:text-sm">Spent</th>
+                    <th className="text-center py-2 sm:py-3 px-2 sm:px-4 text-gray-400 font-semibold text-xs sm:text-sm">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -898,38 +899,38 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                         className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-all ${isSelected ? 'bg-orange-500/10' : ''
                           }`}
                       >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${team.color}`}></div>
-                            <span className={`font-semibold ${isSelected ? 'text-orange-400' : 'text-white'}`}>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className={`w-2 sm:w-3 h-2 sm:h-3 rounded-full bg-gradient-to-r ${team.color}`}></div>
+                            <span className={`font-semibold text-xs sm:text-sm ${isSelected ? 'text-orange-400' : 'text-white'}`}>
                               {team.name}
-                              {isSelected && <span className="ml-2 text-xs text-orange-500">(You)</span>}
+                              {isSelected && <span className="ml-1 sm:ml-2 text-[10px] sm:text-xs text-orange-500">(You)</span>}
                             </span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-white font-bold">{team.players.length}</span>
-                          <span className="text-gray-500 text-sm">/{team.maxPlayers}</span>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-center">
+                          <span className="text-white font-bold text-xs sm:text-sm">{team.players.length}</span>
+                          <span className="text-gray-500 text-[10px] sm:text-sm">/{team.maxPlayers}</span>
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`font-bold ${team.budget < 20 ? 'text-red-400' : 'text-green-400'}`}>
-                            ₹{team.budget} Cr
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-right">
+                          <span className={`font-bold text-xs sm:text-sm ${team.budget < 20 ? 'text-red-400' : 'text-green-400'}`}>
+                            ₹{team.budget}Cr
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className="text-orange-400 font-bold">₹{spent} Cr</span>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-right">
+                          <span className="text-orange-400 font-bold text-xs sm:text-sm">₹{spent}Cr</span>
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-center">
                           {!isSelected && (
                             <button
                               onClick={() => handleTeamSwitch(team.id)}
-                              className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg font-semibold transition-all"
+                              className="px-2 sm:px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs sm:text-sm rounded-lg font-semibold transition-all"
                             >
                               Switch
                             </button>
                           )}
                           {isSelected && (
-                            <span className="text-orange-500 text-sm font-semibold">Active</span>
+                            <span className="text-orange-500 text-xs sm:text-sm font-semibold">Active</span>
                           )}
                         </td>
                       </motion.tr>
@@ -937,6 +938,43 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Teams List - Shown only on mobile */}
+            <div className="sm:hidden space-y-2">
+              {teams.map((team) => {
+                const isSelected = localTeamId === team.id
+                const spent = 100 - team.budget
+                return (
+                  <div
+                    key={team.id}
+                    className={`bg-slate-800/50 rounded-lg p-3 border ${isSelected ? 'border-orange-500' : 'border-slate-700'}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${team.color}`}></div>
+                        <span className={`font-semibold text-sm ${isSelected ? 'text-orange-400' : 'text-white'}`}>
+                          {team.name}
+                          {isSelected && <span className="ml-1 text-[10px] text-orange-500">(You)</span>}
+                        </span>
+                      </div>
+                      {!isSelected && (
+                        <button
+                          onClick={() => handleTeamSwitch(team.id)}
+                          className="px-2 py-1 bg-blue-500 text-white text-[10px] rounded font-semibold"
+                        >
+                          Switch
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[11px] text-gray-400">
+                      <span>Players: <span className="text-white font-bold">{team.players.length}/25</span></span>
+                      <span>Budget: <span className="text-green-400 font-bold">₹{team.budget}Cr</span></span>
+                      <span>Spent: <span className="text-orange-400 font-bold">₹{spent}Cr</span></span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Detailed Teams View */}
@@ -947,15 +985,15 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="mt-6"
+                  className="mt-4 sm:mt-6"
                 >
                   {/* Team Selection Tabs */}
-                  <div className="flex flex-wrap gap-2 mb-6 p-2 bg-slate-900/50 rounded-xl border border-slate-700">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4 sm:mb-6 p-2 bg-slate-900/50 rounded-xl border border-slate-700">
                     {teams.map((team) => (
                       <button
                         key={team.id}
                         onClick={() => setSelectedTeamForAnalysis(team.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${selectedTeamForAnalysis === team.id
+                        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold transition-all text-xs sm:text-sm ${selectedTeamForAnalysis === team.id
                             ? 'bg-gradient-to-r ' + team.color + ' text-white shadow-lg'
                             : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
                           }`}
@@ -987,96 +1025,91 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -20 }}
                           transition={{ duration: 0.3 }}
-                          className="space-y-6"
+                          className="space-y-4 sm:space-y-6"
                         >
                           {/* Team Summary Card */}
-                          <div className={`bg-gradient-to-br ${team.color} rounded-xl p-6 shadow-2xl`}>
-                            <div className="flex items-center justify-between mb-4">
+                          <div className={`bg-gradient-to-br ${team.color} rounded-xl p-4 sm:p-6 shadow-2xl`}>
+                            <div className="flex items-center justify-between mb-3 sm:mb-4">
                               <div>
-                                <h2 className="text-3xl font-black text-white mb-2">{team.name}</h2>
+                                <h2 className="text-xl sm:text-3xl font-black text-white mb-1 sm:mb-2">{team.name}</h2>
                                 {localTeamId === team.id && (
-                                  <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                  <span className="bg-orange-500 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold">
                                     Your Team
                                   </span>
                                 )}
                               </div>
                               <div className="text-right">
-                                <p className="text-white/80 text-sm">Total Players</p>
-                                <p className="text-4xl font-black text-white">{team.players.length}</p>
-                                <p className="text-white/60 text-xs">of {team.maxPlayers}</p>
+                                <p className="text-white/80 text-[10px] sm:text-sm">Players</p>
+                                <p className="text-2xl sm:text-4xl font-black text-white">{team.players.length}</p>
+                                <p className="text-white/60 text-[10px] sm:text-xs">of {team.maxPlayers}</p>
                               </div>
                             </div>
 
                             {/* Budget and Stats */}
-                            <div className="grid grid-cols-3 gap-4 mt-6">
-                              <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center">
-                                <p className="text-white/80 text-xs mb-1">Budget Remaining</p>
-                                <p className="text-2xl font-black text-white">₹{team.budget}</p>
-                                <p className="text-white/60 text-xs">Crores</p>
+                            <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4 sm:mt-6">
+                              <div className="bg-white/10 backdrop-blur rounded-lg p-2 sm:p-4 text-center">
+                                <p className="text-white/80 text-[10px] sm:text-xs mb-0.5 sm:mb-1">Budget</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">₹{team.budget}</p>
+                                <p className="text-white/60 text-[9px] sm:text-xs">Crores</p>
                               </div>
-                              <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center">
-                                <p className="text-white/80 text-xs mb-1">Money Spent</p>
-                                <p className="text-2xl font-black text-white">₹{100 - team.budget}</p>
-                                <p className="text-white/60 text-xs">Crores</p>
+                              <div className="bg-white/10 backdrop-blur rounded-lg p-2 sm:p-4 text-center">
+                                <p className="text-white/80 text-[10px] sm:text-xs mb-0.5 sm:mb-1">Spent</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">₹{100 - team.budget}</p>
+                                <p className="text-white/60 text-[9px] sm:text-xs">Crores</p>
                               </div>
-                              <div className="bg-white/10 backdrop-blur rounded-lg p-4 text-center">
-                                <p className="text-white/80 text-xs mb-1">Avg. Price</p>
-                                <p className="text-2xl font-black text-white">
+                              <div className="bg-white/10 backdrop-blur rounded-lg p-2 sm:p-4 text-center">
+                                <p className="text-white/80 text-[10px] sm:text-xs mb-0.5 sm:mb-1">Avg.</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">
                                   ₹{team.players.length > 0 ? ((100 - team.budget) / team.players.length).toFixed(1) : '0'}
                                 </p>
-                                <p className="text-white/60 text-xs">Per Player</p>
+                                <p className="text-white/60 text-[9px] sm:text-xs">Per Player</p>
                               </div>
                             </div>
 
                             {/* Squad Composition */}
-                            <div className="grid grid-cols-4 gap-3 mt-6">
-                              <div className="bg-blue-500/20 backdrop-blur rounded-lg p-3 text-center border border-blue-400/30">
-                                <p className="text-blue-200 text-xs mb-1">Batsmen</p>
-                                <p className="text-2xl font-black text-white">{batsmen.length}</p>
+                            <div className="grid grid-cols-4 gap-1.5 sm:gap-3 mt-4 sm:mt-6">
+                              <div className="bg-blue-500/20 backdrop-blur rounded-lg p-1.5 sm:p-3 text-center border border-blue-400/30">
+                                <p className="text-blue-200 text-[9px] sm:text-xs mb-0.5 sm:mb-1">Bat</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">{batsmen.length}</p>
                               </div>
-                              <div className="bg-red-500/20 backdrop-blur rounded-lg p-3 text-center border border-red-400/30">
-                                <p className="text-red-200 text-xs mb-1">Bowlers</p>
-                                <p className="text-2xl font-black text-white">{bowlers.length}</p>
+                              <div className="bg-red-500/20 backdrop-blur rounded-lg p-1.5 sm:p-3 text-center border border-red-400/30">
+                                <p className="text-red-200 text-[9px] sm:text-xs mb-0.5 sm:mb-1">Bowl</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">{bowlers.length}</p>
                               </div>
-                              <div className="bg-purple-500/20 backdrop-blur rounded-lg p-3 text-center border border-purple-400/30">
-                                <p className="text-purple-200 text-xs mb-1">All-Rounders</p>
-                                <p className="text-2xl font-black text-white">{allRounders.length}</p>
+                              <div className="bg-purple-500/20 backdrop-blur rounded-lg p-1.5 sm:p-3 text-center border border-purple-400/30">
+                                <p className="text-purple-200 text-[9px] sm:text-xs mb-0.5 sm:mb-1">AR</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">{allRounders.length}</p>
                               </div>
-                              <div className="bg-green-500/20 backdrop-blur rounded-lg p-3 text-center border border-green-400/30">
-                                <p className="text-green-200 text-xs mb-1">Wicket-Keepers</p>
-                                <p className="text-2xl font-black text-white">{wicketKeepers.length}</p>
+                              <div className="bg-green-500/20 backdrop-blur rounded-lg p-1.5 sm:p-3 text-center border border-green-400/30">
+                                <p className="text-green-200 text-[9px] sm:text-xs mb-0.5 sm:mb-1">WK</p>
+                                <p className="text-lg sm:text-2xl font-black text-white">{wicketKeepers.length}</p>
                               </div>
                             </div>
                           </div>
 
                           {/* Squad List by Role */}
                           {team.players.length > 0 ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
                               {/* Batsmen */}
                               {batsmen.length > 0 && (
-                                <div className="bg-slate-800 rounded-xl p-5 border border-blue-500/30">
-                                  <h3 className="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
-                                    <span className="text-2xl"></span>
+                                <div className="bg-slate-800 rounded-xl p-3 sm:p-5 border border-blue-500/30">
+                                  <h3 className="text-base sm:text-xl font-bold text-blue-400 mb-2 sm:mb-4 flex items-center gap-2">
+                                    <span className="text-lg sm:text-2xl">🏏</span>
                                     Batsmen ({batsmen.length})
                                   </h3>
-                                  <div className="space-y-2">
+                                  <div className="space-y-1.5 sm:space-y-2 max-h-48 overflow-y-auto">
                                     {batsmen.map((player, idx) => (
                                       <div
                                         key={idx}
-                                        className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                        className="bg-slate-700/50 rounded-lg p-2 sm:p-3 hover:bg-slate-700 transition-all"
                                       >
                                         <div className="flex justify-between items-center">
                                           <div>
-                                            <p className="text-white font-semibold">{player.name}</p>
-                                            <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                            <p className="text-white font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{player.name}</p>
+                                            <p className="text-gray-400 text-[10px] sm:text-xs">Base: ₹{player.basePrice}Cr</p>
                                           </div>
                                           <div className="text-right">
-                                            <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
-                                            <p className="text-xs text-gray-500">
-                                              {player.soldPrice && player.basePrice
-                                                ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
-                                                : ''}
-                                            </p>
+                                            <p className="text-orange-400 font-bold text-xs sm:text-sm">₹{player.soldPrice}Cr</p>
                                           </div>
                                         </div>
                                       </div>
@@ -1087,29 +1120,24 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
 
                               {/* Bowlers */}
                               {bowlers.length > 0 && (
-                                <div className="bg-slate-800 rounded-xl p-5 border border-red-500/30">
-                                  <h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
-                                    <span className="text-2xl"></span>
+                                <div className="bg-slate-800 rounded-xl p-3 sm:p-5 border border-red-500/30">
+                                  <h3 className="text-base sm:text-xl font-bold text-red-400 mb-2 sm:mb-4 flex items-center gap-2">
+                                    <span className="text-lg sm:text-2xl">🎯</span>
                                     Bowlers ({bowlers.length})
                                   </h3>
-                                  <div className="space-y-2">
+                                  <div className="space-y-1.5 sm:space-y-2 max-h-48 overflow-y-auto">
                                     {bowlers.map((player, idx) => (
                                       <div
                                         key={idx}
-                                        className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                        className="bg-slate-700/50 rounded-lg p-2 sm:p-3 hover:bg-slate-700 transition-all"
                                       >
                                         <div className="flex justify-between items-center">
                                           <div>
-                                            <p className="text-white font-semibold">{player.name}</p>
-                                            <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                            <p className="text-white font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{player.name}</p>
+                                            <p className="text-gray-400 text-[10px] sm:text-xs">Base: ₹{player.basePrice}Cr</p>
                                           </div>
                                           <div className="text-right">
-                                            <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
-                                            <p className="text-xs text-gray-500">
-                                              {player.soldPrice && player.basePrice
-                                                ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
-                                                : ''}
-                                            </p>
+                                            <p className="text-orange-400 font-bold text-xs sm:text-sm">₹{player.soldPrice}Cr</p>
                                           </div>
                                         </div>
                                       </div>
@@ -1120,29 +1148,24 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
 
                               {/* All-Rounders */}
                               {allRounders.length > 0 && (
-                                <div className="bg-slate-800 rounded-xl p-5 border border-purple-500/30">
-                                  <h3 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
-                                    <span className="text-2xl"></span>
+                                <div className="bg-slate-800 rounded-xl p-3 sm:p-5 border border-purple-500/30">
+                                  <h3 className="text-base sm:text-xl font-bold text-purple-400 mb-2 sm:mb-4 flex items-center gap-2">
+                                    <span className="text-lg sm:text-2xl">⭐</span>
                                     All-Rounders ({allRounders.length})
                                   </h3>
-                                  <div className="space-y-2">
+                                  <div className="space-y-1.5 sm:space-y-2 max-h-48 overflow-y-auto">
                                     {allRounders.map((player, idx) => (
                                       <div
                                         key={idx}
-                                        className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                        className="bg-slate-700/50 rounded-lg p-2 sm:p-3 hover:bg-slate-700 transition-all"
                                       >
                                         <div className="flex justify-between items-center">
                                           <div>
-                                            <p className="text-white font-semibold">{player.name}</p>
-                                            <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                            <p className="text-white font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{player.name}</p>
+                                            <p className="text-gray-400 text-[10px] sm:text-xs">Base: ₹{player.basePrice}Cr</p>
                                           </div>
                                           <div className="text-right">
-                                            <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
-                                            <p className="text-xs text-gray-500">
-                                              {player.soldPrice && player.basePrice
-                                                ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
-                                                : ''}
-                                            </p>
+                                            <p className="text-orange-400 font-bold text-xs sm:text-sm">₹{player.soldPrice}Cr</p>
                                           </div>
                                         </div>
                                       </div>
@@ -1153,28 +1176,24 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
 
                               {/* Wicket-Keepers */}
                               {wicketKeepers.length > 0 && (
-                                <div className="bg-slate-800 rounded-xl p-5 border border-green-500/30">
-                                  <h3 className="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
-                                    Wicket-Keepers ({wicketKeepers.length})
+                                <div className="bg-slate-800 rounded-xl p-3 sm:p-5 border border-green-500/30">
+                                  <h3 className="text-base sm:text-xl font-bold text-green-400 mb-2 sm:mb-4 flex items-center gap-2">
+                                    <span className="text-lg sm:text-2xl">🧤</span>
+                                    WK ({wicketKeepers.length})
                                   </h3>
-                                  <div className="space-y-2">
+                                  <div className="space-y-1.5 sm:space-y-2 max-h-48 overflow-y-auto">
                                     {wicketKeepers.map((player, idx) => (
                                       <div
                                         key={idx}
-                                        className="bg-slate-700/50 rounded-lg p-3 hover:bg-slate-700 transition-all"
+                                        className="bg-slate-700/50 rounded-lg p-2 sm:p-3 hover:bg-slate-700 transition-all"
                                       >
                                         <div className="flex justify-between items-center">
                                           <div>
-                                            <p className="text-white font-semibold">{player.name}</p>
-                                            <p className="text-gray-400 text-xs">Base: ₹{player.basePrice} Cr</p>
+                                            <p className="text-white font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{player.name}</p>
+                                            <p className="text-gray-400 text-[10px] sm:text-xs">Base: ₹{player.basePrice}Cr</p>
                                           </div>
                                           <div className="text-right">
-                                            <p className="text-orange-400 font-bold">₹{player.soldPrice} Cr</p>
-                                            <p className="text-xs text-gray-500">
-                                              {player.soldPrice && player.basePrice
-                                                ? `${((player.soldPrice / player.basePrice) * 100).toFixed(0)}%`
-                                                : ''}
-                                            </p>
+                                            <p className="text-orange-400 font-bold text-xs sm:text-sm">₹{player.soldPrice}Cr</p>
                                           </div>
                                         </div>
                                       </div>
@@ -1184,10 +1203,10 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                               )}
                             </div>
                           ) : (
-                            <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700">
-                              <p className="text-4xl mb-4"></p>
-                              <p className="text-gray-400 text-lg">No players purchased yet</p>
-                              <p className="text-gray-500 text-sm mt-2">Start bidding to build your squad!</p>
+                            <div className="bg-slate-800 rounded-xl p-6 sm:p-12 text-center border border-slate-700">
+                              <p className="text-2xl sm:text-4xl mb-2 sm:mb-4">🏏</p>
+                              <p className="text-gray-400 text-sm sm:text-lg">No players purchased yet</p>
+                              <p className="text-gray-500 text-xs sm:text-sm mt-1 sm:mt-2">Start bidding to build your squad!</p>
                             </div>
                           )}
                         </motion.div>
