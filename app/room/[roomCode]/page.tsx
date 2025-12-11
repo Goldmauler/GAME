@@ -634,7 +634,7 @@ export default function RoomPage() {
   if (roomState?.phase === 'lobby' || roomState?.phase === 'countdown') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           {/* Header */}
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -907,7 +907,7 @@ export default function RoomPage() {
   if (roomState?.phase === 'active') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="text-center mb-6">
             <h1 className="text-4xl font-bold mb-2 flex items-center justify-center gap-3">
               <Trophy className="w-10 h-10 text-orange-500" />

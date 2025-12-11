@@ -7,6 +7,7 @@ import TeamSelection from "./team-selection"
 import AuctioneerController from "./auctioneer-controller"
 import PlayerAnalysisEnhanced from "./player-analysis-enhanced"
 import BiddingStrategyDisplay from "./bidding-strategy-display"
+import AuctionLeaderboard from "./auction-leaderboard"
 
 declare global {
   namespace JSX {
@@ -176,7 +177,15 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
     timeLeft: 30,
   })
   const [auctionPhase, setAuctionPhase] = useState<"active" | "completed">("active")
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [lastBidTeam, setLastBidTeam] = useState<string>("")
+
+  // End auction confirmation modal
+  const [showEndAuctionModal, setShowEndAuctionModal] = useState(false)
+  const [endConfirmText, setEndConfirmText] = useState("")
+
+  // Withdraw state - tracks if user has withdrawn from current bidding
+  const [hasWithdrawn, setHasWithdrawn] = useState(false)
 
   // WebSocket connection to auction server (optional)
   const wsRef = useRef<WebSocket | null>(null)
@@ -192,6 +201,11 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
       setSelectedTeamForAnalysis(localTeamId || teams[0].id)
     }
   }, [showTeamsTable, selectedTeamForAnalysis, localTeamId, teams])
+
+  // Reset withdraw state when player changes
+  useEffect(() => {
+    setHasWithdrawn(false)
+  }, [playerIndex])
 
   // Player analysis modal
   const [selectedPlayerForAnalysis, setSelectedPlayerForAnalysis] = useState<Player | null>(null)
@@ -229,6 +243,8 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
       results
     }
     sessionStorage.setItem('auctionState', JSON.stringify(stateToSave))
+    // Also save teams separately for the Teams page to read
+    sessionStorage.setItem('auctionTeams', JSON.stringify(teams))
   }, [gamePhase, teams, playerIndex, currentBid, localTeamId, auctionPhase, results])
 
   // Handle team selection
@@ -354,7 +370,7 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
       setLastBidTeam("")
     } else {
       setAuctionPhase("completed")
-      onComplete()
+      setShowLeaderboard(true) // Show leaderboard when auction ends
     }
   }
 
@@ -384,12 +400,45 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
     }
   }
 
+  // Handle withdraw from current bidding
+  const handleWithdraw = () => {
+    setHasWithdrawn(true)
+    // If we're the highest bidder, we can't withdraw
+    if (currentBid.highestBidder === localTeamId) {
+      return // Can't withdraw if you're winning
+    }
+  }
+
+  // Handle end auction confirmation
+  const handleEndAuction = () => {
+    if (endConfirmText.toLowerCase() === "end") {
+      setShowEndAuctionModal(false)
+      setEndConfirmText("")
+      setAuctionPhase("completed")
+      setShowLeaderboard(true)
+    }
+  }
+
   const currentPlayer = PLAYERS[playerIndex]
   const highestBidderTeam = teams.find((t: Team) => t.id === currentBid.highestBidder)
 
   // Show team selection screen first
   if (gamePhase === "team-selection") {
     return <TeamSelection teams={teams} onTeamSelect={handleTeamSelect} />
+  }
+
+  // Show leaderboard when auction is completed
+  if (showLeaderboard) {
+    return (
+      <AuctionLeaderboard 
+        teams={teams} 
+        onClose={() => {
+          setShowLeaderboard(false)
+          onComplete()
+        }}
+        showAnimation={true}
+      />
+    )
   }
 
   return (
@@ -404,9 +453,72 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
         )}
       </AnimatePresence>
 
+      {/* End Auction Confirmation Modal */}
+      <AnimatePresence>
+        {showEndAuctionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
+            onClick={() => setShowEndAuctionModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 border border-red-500/50 shadow-2xl max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🛑</div>
+                <h2 className="text-2xl font-bold text-white mb-2">End Auction Early?</h2>
+                <p className="text-gray-400 text-sm">
+                  This will end the auction with your current team. Your team will be scored and shown on the leaderboard.
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm text-gray-400 mb-2">
+                  Type <span className="text-red-400 font-bold">"end"</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={endConfirmText}
+                  onChange={(e) => setEndConfirmText(e.target.value)}
+                  placeholder="Type 'end' here..."
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowEndAuctionModal(false)}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-lg font-bold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEndAuction}
+                  disabled={endConfirmText.toLowerCase() !== 'end'}
+                  className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all ${
+                    endConfirmText.toLowerCase() === 'end'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  End Auction
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Auction UI */}
       <div className="min-h-screen py-8 px-4">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           {/* Main Auction Stage */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -522,17 +634,53 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
                     </div>
                     <span className="text-xs text-yellow-400">Locked</span>
                   </div>
-                  <button
-                    onClick={() => {
-                      const bidAmount = currentBid.currentPrice + 5
-                      handleBid(localTeamId, bidAmount)
-                    }}
-                    className="ml-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-bold transition-all"
-                    disabled={!localTeamId}
-                  >
-                    Bid +₹5Cr (My Team)
-                  </button>
+                  {!hasWithdrawn && currentBid.highestBidder !== localTeamId ? (
+                    <button
+                      onClick={() => {
+                        const bidAmount = currentBid.currentPrice + 5
+                        handleBid(localTeamId, bidAmount)
+                      }}
+                      className="ml-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-bold transition-all"
+                      disabled={!localTeamId}
+                    >
+                      Bid +₹5Cr (My Team)
+                    </button>
+                  ) : hasWithdrawn ? (
+                    <span className="ml-2 text-yellow-400 text-sm font-medium px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                      ⏸️ Withdrawn from this bid
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-green-400 text-sm font-medium px-3 py-2 bg-green-500/10 border border-green-500/30 rounded">
+                      ✓ You're winning!
+                    </span>
+                  )}
                   <div className="ml-auto text-sm text-gray-400">WS: {wsConnected ? "Connected" : "Offline"}</div>
+                </div>
+
+                {/* Withdraw & End Auction Controls */}
+                <div className="flex gap-3 mb-4">
+                  {/* Withdraw Button */}
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={hasWithdrawn || currentBid.highestBidder === localTeamId}
+                    className={`flex items-center gap-2 px-4 py-2 rounded font-bold transition-all ${
+                      hasWithdrawn || currentBid.highestBidder === localTeamId
+                        ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                        : 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                    }`}
+                  >
+                    <span>⏸️</span>
+                    {hasWithdrawn ? 'Withdrawn' : currentBid.highestBidder === localTeamId ? "Can't Withdraw" : 'Withdraw'}
+                  </button>
+
+                  {/* End Auction Button */}
+                  <button
+                    onClick={() => setShowEndAuctionModal(true)}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold transition-all ml-auto"
+                  >
+                    <span>🛑</span>
+                    End Auction
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

@@ -102,14 +102,16 @@ export default function AuctionRoomApp() {
           
           if (msg.type === "room-created") {
             // Room created successfully, room code is in payload
+            // Don't auto-transition here - let room-lobby show the room code screen first
+            // The user will click "Continue to Team Selection" which calls handleRoomJoined
             const { roomCode: code, isHost: host, takenTeams: taken } = msg.payload
             setRoomCode(code)
             setIsHost(host ?? true)
             setTakenTeams(taken || [])
-            setPhase("team-selection")
+            // Keep phase as "lobby" to show room-created screen
           }
           
-          if (msg.type === "joined-room") {
+          if (msg.type === "room-joined") {
             // Successfully joined room
             const { isHost: host, takenTeams: taken } = msg.payload
             setIsHost(host ?? false)
@@ -272,7 +274,7 @@ export default function AuctionRoomApp() {
       
       {phase === "team-selection" && (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-4 sm:py-6 md:py-8 px-3 sm:px-4">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-[1600px] mx-auto">
             {/* Room Code Display */}
             <div className="text-center mb-4 sm:mb-6 md:mb-8">
               <div className="inline-block bg-slate-800/50 border border-orange-500/50 rounded-xl px-4 sm:px-6 py-2 sm:py-3">

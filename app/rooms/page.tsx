@@ -21,7 +21,7 @@ export default function RoomPage() {
       
       {/* Header */}
       <div className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-sm border-b border-slate-800 py-3">
-        <div className="max-w-7xl mx-auto px-4 flex items-center gap-3">
+        <div className="max-w-[1600px] mx-auto px-4 flex items-center gap-3">
           <Button
             onClick={() => router.push('/')}
             variant="outline"

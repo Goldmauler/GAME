@@ -12,7 +12,7 @@ interface HeaderProps {
 export default function Header({ gamePhase, onReset }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-sm border-b border-slate-800 py-3">
-      <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
+      <div className="max-w-[1600px] mx-auto px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-lg bg-orange-500/20 flex items-center justify-center">
             <Trophy className="h-5 w-5 text-orange-500" />

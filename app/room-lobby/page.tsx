@@ -77,7 +77,7 @@ export default function Home() {
 
       {/* Header */}
       <header className="relative z-10 border-b border-orange-500/20 py-4">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="text-3xl"></div>
             <div>

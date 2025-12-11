@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle } from "lucide-react"
+import AuctionLeaderboard from "./auction-leaderboard"
 
 // Lazy-load heavy components only when needed
 const SaleHistory = dynamic(() => import("./sale-history"), { ssr: false })
@@ -97,7 +98,13 @@ function MultiplayerAuctionArena({
   const [unsoldPlayersCount, setUnsoldPlayersCount] = useState<number>(0)
   const [saleHistory, setSaleHistory] = useState<any[]>([])
   const [showSaleHistory, setShowSaleHistory] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [isHost, setIsHost] = useState(isHostProp)
+
+  // Withdraw and End Auction state
+  const [hasWithdrawn, setHasWithdrawn] = useState(false)
+  const [showEndAuctionModal, setShowEndAuctionModal] = useState(false)
+  const [endConfirmText, setEndConfirmText] = useState("")
 
   // Reconnection state
   const [isReconnecting, setIsReconnecting] = useState(false)
@@ -165,7 +172,10 @@ function MultiplayerAuctionArena({
           sessionStorage.setItem('auctionTeams', JSON.stringify(updatedTeams))
         }
       }
-      if (player !== undefined) setCurrentPlayer(player)
+      if (player !== undefined) {
+        setCurrentPlayer(player)
+        setHasWithdrawn(false) // Reset withdraw state when new player comes up
+      }
       if (price !== undefined) setCurrentPrice(price)
       setHighestBidder(bidder || "")
       if (history !== undefined) setBidHistory(history || [])
@@ -241,7 +251,7 @@ function MultiplayerAuctionArena({
 
         // Auction complete
         if (msg.type === "auction-complete") {
-          setTimeout(() => onComplete(), 2000)
+          setShowLeaderboard(true) // Show leaderboard first
           return
         }
 
@@ -393,6 +403,24 @@ function MultiplayerAuctionArena({
     }))
   }
 
+  // Handle withdraw from current bidding
+  const handleWithdraw = () => {
+    setHasWithdrawn(true)
+    // If we're the highest bidder, we can't withdraw
+    if (highestBidder === localTeamId) {
+      return // Can't withdraw if you're winning
+    }
+  }
+
+  // Handle end auction confirmation
+  const handleEndAuction = () => {
+    if (endConfirmText.toLowerCase() === "end") {
+      setShowEndAuctionModal(false)
+      setEndConfirmText("")
+      setShowLeaderboard(true)
+    }
+  }
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case "Batsman":
@@ -421,6 +449,20 @@ function MultiplayerAuctionArena({
       default:
         return <Users className="w-4 h-4" />
     }
+  }
+
+  // Show leaderboard when auction is complete
+  if (showLeaderboard) {
+    return (
+      <AuctionLeaderboard 
+        teams={teams} 
+        onClose={() => {
+          setShowLeaderboard(false)
+          onComplete()
+        }}
+        showAnimation={true}
+      />
+    )
   }
 
   if (!currentPlayer) {
@@ -466,7 +508,7 @@ function MultiplayerAuctionArena({
         </motion.div>
       )}
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* Header with User Team Info */}
         <div className="flex items-start justify-between mb-6">
           {/* Left: Room Info */}
@@ -892,6 +934,33 @@ function MultiplayerAuctionArena({
                       >
                         <History className="w-4 h-4 mr-2" />
                         View Sale History ({saleHistory.length})
+                      </Button>
+
+                      {/* Withdraw Button */}
+                      <Button
+                        onClick={handleWithdraw}
+                        disabled={hasWithdrawn || isMyBid}
+                        variant="outline"
+                        size="sm"
+                        className={`${
+                          hasWithdrawn || isMyBid
+                            ? 'bg-slate-800 border-slate-600 text-slate-500 cursor-not-allowed'
+                            : 'bg-yellow-900/30 border-yellow-500/50 text-yellow-400 hover:bg-yellow-900/50 hover:text-yellow-300'
+                        }`}
+                      >
+                        <span className="mr-2">⏸️</span>
+                        {hasWithdrawn ? 'Withdrawn' : isMyBid ? "Can't Withdraw" : 'Withdraw from Bid'}
+                      </Button>
+
+                      {/* End Auction Button */}
+                      <Button
+                        onClick={() => setShowEndAuctionModal(true)}
+                        variant="outline"
+                        size="sm"
+                        className="bg-red-900/30 border-red-500/50 text-red-400 hover:bg-red-900/50 hover:text-red-300"
+                      >
+                        <span className="mr-2">🛑</span>
+                        End Auction
                       </Button>
 
                       {canBid && (
@@ -1326,6 +1395,70 @@ function MultiplayerAuctionArena({
         isOpen={showSaleHistory}
         onClose={() => setShowSaleHistory(false)}
       />
+
+      {/* End Auction Confirmation Modal */}
+      <AnimatePresence>
+        {showEndAuctionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
+            onClick={() => setShowEndAuctionModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 border border-red-500/50 shadow-2xl max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🛑</div>
+                <h2 className="text-2xl font-bold text-white mb-2">End Auction Early?</h2>
+                <p className="text-gray-400 text-sm">
+                  This will end the auction with your current team. Your team will be scored and shown on the leaderboard.
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm text-gray-400 mb-2">
+                  Type <span className="text-red-400 font-bold">"end"</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={endConfirmText}
+                  onChange={(e) => setEndConfirmText(e.target.value)}
+                  placeholder="Type 'end' here..."
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowEndAuctionModal(false)}
+                  variant="outline"
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleEndAuction}
+                  disabled={endConfirmText.toLowerCase() !== 'end'}
+                  className={`flex-1 ${
+                    endConfirmText.toLowerCase() === 'end'
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  End Auction
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Scrollbar Styles */}
       <style jsx global>{`

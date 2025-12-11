@@ -40,6 +40,20 @@ export default function TeamsPage() {
       } catch (e) {
         console.error('Error parsing teams:', e)
       }
+    } else {
+      // Fallback: try to get from auctionState (solo auction format)
+      const storedState = sessionStorage.getItem('auctionState')
+      if (storedState) {
+        try {
+          const state = JSON.parse(storedState)
+          if (state.teams && Array.isArray(state.teams)) {
+            const activeTeams = state.teams.filter((team: Team) => team.players && team.players.length > 0)
+            setTeams(activeTeams)
+          }
+        } catch (e) {
+          console.error('Error parsing auction state:', e)
+        }
+      }
     }
     setLoading(false)
   }, [])
@@ -75,7 +89,7 @@ export default function TeamsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-6 px-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <Button
