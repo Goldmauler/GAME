@@ -1,15 +1,47 @@
 // API Route: Auction Session Management
+// Note: This API works with the sessionState JSON field for full auction state
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { 
-  processBid, 
-  processRTM, 
-  pauseAuction, 
-  resumeAuction, 
-  skipPlayer,
-  resetAuction,
-  type AuctionState
-} from '@/lib/auction-engine'
+
+// Type for auction state stored in sessionState JSON
+interface AuctionState {
+  roomCode: string
+  status: 'lobby' | 'countdown' | 'active' | 'paused' | 'completed'
+  teams: any[]
+  currentPlayerId: string | null
+  currentBid: number | null
+  currentBidderId: string | null
+  bidCount: number
+  playerQueue: string[]
+  soldPlayers: string[]
+  unsoldPlayers: string[]
+  turnTimerStart: Date | null
+  hostId: string
+}
+
+// Helper to get auction state from room's sessionState or construct from fields
+function getAuctionState(room: any): AuctionState {
+  // If sessionState exists, use it
+  if (room.sessionState) {
+    return room.sessionState as AuctionState
+  }
+  
+  // Otherwise construct from available fields
+  return {
+    roomCode: room.roomCode,
+    status: room.status || 'lobby',
+    teams: (room.teams as any) || [],
+    currentPlayerId: null,
+    currentBid: null,
+    currentBidderId: null,
+    bidCount: 0,
+    playerQueue: (room.players as string[]) || [],
+    soldPlayers: [],
+    unsoldPlayers: [],
+    turnTimerStart: null,
+    hostId: room.hostId,
+  }
+}
 
 // Start auction
 export async function POST(request: Request) {
@@ -61,37 +93,53 @@ async function handleBid(body: any) {
     )
   }
   
-  const state: AuctionState = {
-    roomCode: room.roomCode,
-    status: room.status as any,
-    teams: room.teams as any,
-    currentPlayerId: room.currentPlayerId,
-    currentBid: room.currentBid,
-    currentBidderId: room.currentBidder,
-    bidCount: room.bidCount,
-    playerQueue: room.availablePlayers as string[],
-    soldPlayers: room.soldPlayers as string[],
-    unsoldPlayers: room.unsoldPlayers as string[],
-    turnTimerStart: room.turnTimerStart,
-    hostId: room.hostId,
+  const state = getAuctionState(room)
+  
+  // Find the team
+  const team = state.teams.find((t: any) => t.id === teamId)
+  if (!team) {
+    return NextResponse.json(
+      { success: false, error: 'Team not found' },
+      { status: 404 }
+    )
   }
   
-  const result = await processBid(roomCode, teamId, bidAmount, state)
-  
-  if (result.success) {
-    // Update database
-    await prisma.auctionRoom.update({
-      where: { roomCode },
-      data: {
-        currentBid: state.currentBid,
-        currentBidder: state.currentBidderId,
-        bidCount: state.bidCount,
-        teams: state.teams as any,
-      }
-    })
+  // Validate bid
+  if (bidAmount <= (state.currentBid || 0)) {
+    return NextResponse.json(
+      { success: false, error: 'Bid must be higher than current bid' },
+      { status: 400 }
+    )
   }
   
-  return NextResponse.json(result)
+  if (bidAmount > team.budget) {
+    return NextResponse.json(
+      { success: false, error: 'Insufficient budget' },
+      { status: 400 }
+    )
+  }
+  
+  // Update state
+  state.currentBid = bidAmount
+  state.currentBidderId = teamId
+  state.bidCount = (state.bidCount || 0) + 1
+  
+  // Save updated state
+  await prisma.auctionRoom.update({
+    where: { roomCode },
+    data: {
+      sessionState: state as any,
+      teams: state.teams as any,
+    }
+  })
+  
+  return NextResponse.json({ 
+    success: true, 
+    message: 'Bid placed',
+    newBid: bidAmount,
+    bidderId: teamId,
+    bidderName: team.name
+  })
 }
 
 async function handleRTM(body: any) {
@@ -108,42 +156,69 @@ async function handleRTM(body: any) {
     )
   }
   
-  const state: AuctionState = {
-    roomCode: room.roomCode,
-    status: room.status as any,
-    teams: room.teams as any,
-    currentPlayerId: room.currentPlayerId,
-    currentBid: room.currentBid,
-    currentBidderId: room.currentBidder,
-    bidCount: room.bidCount,
-    playerQueue: room.availablePlayers as string[],
-    soldPlayers: room.soldPlayers as string[],
-    unsoldPlayers: room.unsoldPlayers as string[],
-    turnTimerStart: room.turnTimerStart,
-    hostId: room.hostId,
+  const state = getAuctionState(room)
+  
+  // Find the team
+  const team = state.teams.find((t: any) => t.id === teamId)
+  if (!team) {
+    return NextResponse.json(
+      { success: false, error: 'Team not found' },
+      { status: 404 }
+    )
   }
   
-  const result = await processRTM(roomCode, teamId, state)
-  
-  if (result.success) {
-    await prisma.auctionRoom.update({
-      where: { roomCode },
-      data: {
-        teams: state.teams as any,
-        soldPlayers: state.soldPlayers as any,
-      }
-    })
+  // Check RTM availability
+  if (!team.rtmCardsLeft || team.rtmCardsLeft <= 0) {
+    return NextResponse.json(
+      { success: false, error: 'No RTM cards remaining' },
+      { status: 400 }
+    )
   }
   
-  return NextResponse.json(result)
+  // Use RTM card
+  team.rtmCardsLeft -= 1
+  state.currentBidderId = teamId
+  
+  // Save updated state
+  await prisma.auctionRoom.update({
+    where: { roomCode },
+    data: {
+      sessionState: state as any,
+      teams: state.teams as any,
+    }
+  })
+  
+  return NextResponse.json({ 
+    success: true, 
+    message: 'RTM used successfully',
+    teamId,
+    rtmCardsLeft: team.rtmCardsLeft
+  })
 }
 
 async function handlePause(body: any) {
   const { roomCode } = body
   
+  const room = await prisma.auctionRoom.findUnique({
+    where: { roomCode }
+  })
+  
+  if (!room) {
+    return NextResponse.json(
+      { success: false, error: 'Room not found' },
+      { status: 404 }
+    )
+  }
+  
+  const state = getAuctionState(room)
+  state.status = 'paused'
+  
   await prisma.auctionRoom.update({
     where: { roomCode },
-    data: { status: 'paused' }
+    data: { 
+      status: 'paused',
+      sessionState: state as any
+    }
   })
   
   return NextResponse.json({ success: true, message: 'Auction paused' })
@@ -152,11 +227,26 @@ async function handlePause(body: any) {
 async function handleResume(body: any) {
   const { roomCode } = body
   
+  const room = await prisma.auctionRoom.findUnique({
+    where: { roomCode }
+  })
+  
+  if (!room) {
+    return NextResponse.json(
+      { success: false, error: 'Room not found' },
+      { status: 404 }
+    )
+  }
+  
+  const state = getAuctionState(room)
+  state.status = 'active'
+  state.turnTimerStart = new Date()
+  
   await prisma.auctionRoom.update({
     where: { roomCode },
     data: { 
       status: 'active',
-      turnTimerStart: new Date()
+      sessionState: state as any
     }
   })
   
@@ -177,52 +267,86 @@ async function handleSkip(body: any) {
     )
   }
   
-  const state: AuctionState = {
-    roomCode: room.roomCode,
-    status: room.status as any,
-    teams: room.teams as any,
-    currentPlayerId: room.currentPlayerId,
-    currentBid: room.currentBid,
-    currentBidderId: room.currentBidder,
-    bidCount: room.bidCount,
-    playerQueue: room.availablePlayers as string[],
-    soldPlayers: room.soldPlayers as string[],
-    unsoldPlayers: room.unsoldPlayers as string[],
-    turnTimerStart: room.turnTimerStart,
-    hostId: room.hostId,
+  const state = getAuctionState(room)
+  
+  // Move current player to unsold
+  if (state.currentPlayerId) {
+    state.unsoldPlayers.push(state.currentPlayerId)
   }
   
-  await skipPlayer(state)
+  // Get next player
+  if (state.playerQueue.length > 0) {
+    state.currentPlayerId = state.playerQueue.shift() || null
+  } else {
+    state.currentPlayerId = null
+  }
+  
+  // Reset bid state
+  state.currentBid = null
+  state.currentBidderId = null
+  state.bidCount = 0
+  state.turnTimerStart = new Date()
   
   await prisma.auctionRoom.update({
     where: { roomCode },
     data: {
-      currentPlayerId: state.currentPlayerId,
-      unsoldPlayers: state.unsoldPlayers,
-      availablePlayers: state.playerQueue,
+      sessionState: state as any,
+      playerIndex: room.playerIndex + 1
     }
   })
   
-  return NextResponse.json({ success: true, message: 'Player skipped' })
+  return NextResponse.json({ 
+    success: true, 
+    message: 'Player skipped',
+    nextPlayerId: state.currentPlayerId
+  })
 }
 
 async function handleReset(body: any) {
   const { roomCode } = body
   
-  await resetAuction(roomCode)
+  const room = await prisma.auctionRoom.findUnique({
+    where: { roomCode }
+  })
   
-  // Reset room state
+  if (!room) {
+    return NextResponse.json(
+      { success: false, error: 'Room not found' },
+      { status: 404 }
+    )
+  }
+  
+  // Reset to initial state
+  const initialState: AuctionState = {
+    roomCode: room.roomCode,
+    status: 'lobby',
+    teams: (room.teams as any[]) || [],
+    currentPlayerId: null,
+    currentBid: null,
+    currentBidderId: null,
+    bidCount: 0,
+    playerQueue: (room.players as string[]) || [],
+    soldPlayers: [],
+    unsoldPlayers: [],
+    turnTimerStart: null,
+    hostId: room.hostId,
+  }
+  
+  // Reset team budgets and players
+  initialState.teams = initialState.teams.map((team: any) => ({
+    ...team,
+    budget: 10000, // Reset budget to 100 crore
+    players: [],
+    rtmCardsLeft: 2
+  }))
+  
   await prisma.auctionRoom.update({
     where: { roomCode },
     data: {
       status: 'lobby',
-      currentPlayerId: null,
-      currentBid: null,
-      currentBidder: null,
-      bidCount: 0,
       playerIndex: 0,
-      soldPlayers: [],
-      unsoldPlayers: [],
+      teams: initialState.teams as any,
+      sessionState: initialState as any
     }
   })
   
