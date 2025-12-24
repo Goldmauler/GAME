@@ -5,6 +5,19 @@ const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
 const fetch = require("node-fetch")
 const os = require("os")
 
+// ============ AUCTION CONFIGURATION ============
+// Modify these values to customize the auction
+
+// BIDDING TIME (in seconds)
+const ROUND_1_BID_TIME = 15  // Time per player in Round 1
+const ROUND_2_BID_TIME = 10  // Time per player in Round 2
+
+// BREAK TIME (in seconds)
+const CATEGORY_BREAK_TIME = 10  // Break between categories
+const ROUND_BREAK_TIME = 20     // Break between rounds
+
+// ============ END CONFIGURATION ============
+
 // Port configuration for both local and Render deployment
 const PORT = process.env.PORT || process.env.AUCTION_PORT || 8080
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000"
@@ -137,8 +150,8 @@ function createPlayers() {
   allPlayers.forEach(player => {
     const role = player.role.toLowerCase()
     
-    // Marquee players (high base price)
-    if (player.basePrice >= 10) {
+    // Marquee players (high base price >= 2Cr)
+    if (player.basePrice >= 2) {
       categorized.marquee.push(player)
     }
     // Categorize by role
@@ -216,7 +229,7 @@ class AuctionRoom {
       currentPrice: 0,
       highestBidder: null,
       bidHistory: [],
-      timeLeft: 60,
+      timeLeft: ROUND_1_BID_TIME,
       phase: "lobby", // lobby, countdown, active, break, strategic_timeout, completed
       countdownSeconds: 10,
       
@@ -245,8 +258,16 @@ class AuctionRoom {
       totalPlayersSold: 0,
       totalMoneySpent: 0,
       
+      // Pause state
+      isPaused: false,
+      pausedBy: null,
+      pausedAt: null,
+      
+      // Chat messages
+      chatMessages: [], // Array of {userName, message, timestamp, type: 'chat'|'system'|'bid'}
+      
       // Sale History - Track all player sales
-      saleHistory: [], // Array of {playerName, teamName, price, round, timestamp, status: 'sold'/'unsold'}
+      saleHistory: [] // Array of {playerName, teamName, price, round, timestamp, status: 'sold'/'unsold'}
     }
     
     // Initialize strategic timeouts and RTM for all teams
@@ -551,7 +572,7 @@ class AuctionRoom {
     if (this.tickInterval) return
     
     this.tickInterval = setInterval(() => {
-      if (this.auctionState.phase !== 'active') {
+      if (this.auctionState.phase !== 'active' || this.auctionState.isPaused) {
         this.stopTicking()
         return
       }
@@ -647,7 +668,7 @@ class AuctionRoom {
     if (this.auctionState.playerIndex < this.players.length - 1) {
       this.auctionState.playerIndex += 1
       this.auctionState.currentPrice = this.players[this.auctionState.playerIndex].basePrice
-      this.auctionState.timeLeft = this.auctionState.currentRound === 1 ? 60 : 30
+      this.auctionState.timeLeft = this.auctionState.currentRound === 1 ? ROUND_1_BID_TIME : ROUND_2_BID_TIME
     } else {
       // Category complete
       this.handleCategoryComplete()
@@ -745,7 +766,7 @@ class AuctionRoom {
       this.auctionState.currentPrice = this.players[this.auctionState.playerIndex].basePrice
       this.auctionState.highestBidder = null
       this.auctionState.bidHistory = []
-      this.auctionState.timeLeft = this.auctionState.currentRound === 1 ? 60 : 30 // Accelerated in round 2
+      this.auctionState.timeLeft = this.auctionState.currentRound === 1 ? ROUND_1_BID_TIME : ROUND_2_BID_TIME
     } else {
       // Category complete - check for break or next category
       this.handleCategoryComplete()
@@ -775,7 +796,7 @@ class AuctionRoom {
   startCategoryBreak(completedCategory, nextCategory) {
     this.auctionState.phase = 'break'
     this.auctionState.breakType = 'category'
-    this.auctionState.breakTimeLeft = 30 // 30 second break
+    this.auctionState.breakTimeLeft = CATEGORY_BREAK_TIME
     this.auctionState.breakMessage = `${this.getCategoryDisplayName(completedCategory)} auction complete! Next up: ${this.getCategoryDisplayName(nextCategory)}`
     
     this.stopTicking()
@@ -796,7 +817,7 @@ class AuctionRoom {
   startSnackBreak() {
     this.auctionState.phase = 'break'
     this.auctionState.breakType = 'snack'
-    this.auctionState.breakTimeLeft = 60 // 1 minute break
+    this.auctionState.breakTimeLeft = ROUND_BREAK_TIME
     this.auctionState.breakMessage = `Round 1 Complete! Strategic Break - Get ready for Accelerated Auction Round 2!`
     
     this.stopTicking()
@@ -901,6 +922,122 @@ class AuctionRoom {
     }, 1000)
   }
 
+  // Pause auction
+  pauseAuction(teamId, userName) {
+    if (this.auctionState.phase !== 'active' || this.auctionState.isPaused) return false
+    
+    this.auctionState.isPaused = true
+    this.auctionState.pausedBy = { teamId, userName }
+    this.auctionState.pausedAt = Date.now()
+    this.stopTicking()
+    
+    // Add system message
+    this.addChatMessage(null, `⏸️ Auction paused by ${userName}`, 'system')
+    
+    // Broadcast pause event
+    this.broadcastMessage({
+      type: 'auction-paused',
+      payload: {
+        pausedBy: userName,
+        message: `Auction paused by ${userName}`
+      }
+    })
+    
+    this.broadcastState()
+    return true
+  }
+  
+  // Resume auction
+  resumeAuction(teamId, userName) {
+    if (this.auctionState.phase !== 'active' || !this.auctionState.isPaused) return false
+    
+    this.auctionState.isPaused = false
+    this.auctionState.pausedBy = null
+    this.auctionState.pausedAt = null
+    this.startTicking()
+    
+    // Add system message
+    this.addChatMessage(null, `▶️ Auction resumed by ${userName}`, 'system')
+    
+    // Broadcast resume event
+    this.broadcastMessage({
+      type: 'auction-resumed',
+      payload: {
+        resumedBy: userName,
+        message: `Auction resumed by ${userName}`
+      }
+    })
+    
+    this.broadcastState()
+    return true
+  }
+  
+  // Add chat message
+  addChatMessage(userName, message, type = 'chat') {
+    const chatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userName: userName || 'System',
+      message,
+      timestamp: Date.now(),
+      type
+    }
+    
+    // Keep only last 100 messages
+    this.auctionState.chatMessages.push(chatMessage)
+    if (this.auctionState.chatMessages.length > 100) {
+      this.auctionState.chatMessages = this.auctionState.chatMessages.slice(-100)
+    }
+    
+    // Broadcast new message
+    this.broadcastMessage({
+      type: 'chat-message',
+      payload: chatMessage
+    })
+    
+    return chatMessage
+  }
+  
+  // Add custom player
+  addCustomPlayer(player) {
+    // Add to current player list
+    const newPlayer = {
+      id: `custom-${Date.now()}`,
+      name: player.name,
+      role: player.role || 'Batsman',
+      basePrice: player.basePrice || 2,
+      rating: player.rating || 75,
+      stats: player.stats || { matches: 0, runs: 0, wickets: 0 },
+      isCustom: true
+    }
+    
+    // Add to the appropriate category
+    const category = this.getCategoryFromRole(newPlayer.role)
+    if (this.playerCategories[category]) {
+      this.playerCategories[category].push(newPlayer)
+    }
+    
+    // If current category matches, add to current players list
+    const currentCategory = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
+    if (currentCategory === category) {
+      this.players.push(newPlayer)
+    }
+    
+    // Add system message
+    this.addChatMessage(null, `✨ New player added: ${newPlayer.name} (${newPlayer.role}) - Base: ₹${newPlayer.basePrice}Cr`, 'system')
+    
+    this.broadcastState()
+    return newPlayer
+  }
+  
+  getCategoryFromRole(role) {
+    const roleLower = role.toLowerCase()
+    if (roleLower.includes('bat')) return 'batsmen'
+    if (roleLower.includes('bowl')) return 'bowlers'
+    if (roleLower.includes('all')) return 'allrounders'
+    if (roleLower.includes('keep') || roleLower.includes('wicket')) return 'wicketkeepers'
+    return 'batsmen'
+  }
+
   completeAuction() {
     this.auctionState.phase = 'completed'
     this.stopTicking()
@@ -979,6 +1116,9 @@ class AuctionRoom {
         totalMoneySpent: this.auctionState.totalMoneySpent,
         unsoldPlayersCount: this.auctionState.unsoldPlayers.length,
         saleHistory: this.auctionState.saleHistory, // Include sale history
+        isPaused: this.auctionState.isPaused,
+        pausedBy: this.auctionState.pausedBy,
+        chatMessages: this.auctionState.chatMessages.slice(-50), // Send last 50 messages
       },
     })
 
@@ -1171,6 +1311,7 @@ wss.on("connection", (ws) => {
 
 function handleMessage(ws, msg) {
   const { type, payload } = msg
+  console.log(`Received message type: ${type}`)
 
   switch (type) {
     case 'create-room':
@@ -1205,12 +1346,32 @@ function handleMessage(ws, msg) {
       handleMarkUnsold(ws, payload)
       break
     
+    case 'pause-auction':
+      handlePauseAuction(ws, payload)
+      break
+    
+    case 'resume-auction':
+      handleResumeAuction(ws, payload)
+      break
+    
+    case 'chat-message':
+      handleChatMessage(ws, payload)
+      break
+    
+    case 'add-player':
+      handleAddPlayer(ws, payload)
+      break
+    
     case 'list-rooms':
       handleListRooms(ws)
       break
     
     case 'leave-room':
       handleLeaveRoom(ws)
+      break
+
+    case 'get-room-state':
+      handleGetRoomState(ws, payload)
       break
 
     default:
@@ -1636,6 +1797,110 @@ function handleStrategicTimeout(ws, payload) {
   }
 }
 
+function handlePauseAuction(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+  if (!client) return
+
+  const success = room.pauseAuction(client.teamId, client.userName)
+  if (success) {
+    console.log(`Auction paused by ${client.userName} in room ${roomCode}`)
+  } else {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Cannot pause auction at this time' }
+    }))
+  }
+}
+
+function handleResumeAuction(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+  if (!client) return
+
+  // Allow anyone to resume the auction
+  const success = room.resumeAuction(client.teamId, client.userName)
+  if (success) {
+    console.log(`Auction resumed by ${client.userName} in room ${roomCode}`)
+  } else {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Cannot resume auction at this time' }
+    }))
+  }
+}
+
+function handleChatMessage(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+  if (!client) return
+
+  const { message } = payload
+  if (!message || message.trim().length === 0) return
+  if (message.length > 500) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Message too long (max 500 characters)' }
+    }))
+    return
+  }
+
+  room.addChatMessage(client.userName, message.trim(), 'chat')
+}
+
+function handleAddPlayer(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+  if (!client || !client.isHost) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Only the host can add players' }
+    }))
+    return
+  }
+
+  const { player } = payload
+  if (!player || !player.name) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Player name is required' }
+    }))
+    return
+  }
+
+  const newPlayer = room.addCustomPlayer(player)
+  
+  ws.send(JSON.stringify({
+    type: 'player-added',
+    payload: {
+      success: true,
+      player: newPlayer
+    }
+  }))
+  
+  console.log(`Custom player ${player.name} added by ${client.userName} in room ${roomCode}`)
+}
+
 function handleListRooms(ws) {
   const roomList = Array.from(rooms.values())
     .filter(room => room.auctionState.phase === 'lobby') // Only show joinable rooms
@@ -1672,6 +1937,53 @@ function handleLeaveRoom(ws) {
   ws.send(JSON.stringify({
     type: 'left-room',
     payload: { success: true },
+  }))
+}
+
+// Handle get-room-state request (for teams view page)
+function handleGetRoomState(ws, payload) {
+  const { roomCode } = payload || {}
+  
+  if (!roomCode) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Room code required' }
+    }))
+    return
+  }
+  
+  const room = rooms.get(roomCode)
+  if (!room) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Room not found' }
+    }))
+    return
+  }
+  
+  // Send room state with teams data
+  ws.send(JSON.stringify({
+    type: 'room-state',
+    teams: room.teams.map(t => ({
+      id: t.id,
+      name: t.name,
+      budget: t.budget,
+      maxPlayers: t.maxPlayers,
+      players: t.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        basePrice: p.basePrice,
+        soldPrice: p.soldPrice
+      })),
+      owner: room.teamOwners?.[t.id]?.userName || null
+    })),
+    phase: room.auctionPhase,
+    currentRound: room.currentRound,
+    totalPlayersSold: room.soldPlayers?.length || 0,
+    totalMoneySpent: room.teams.reduce((sum, t) => {
+      return sum + t.players.reduce((pSum, p) => pSum + (p.soldPrice || p.basePrice), 0)
+    }, 0)
   }))
 }
 

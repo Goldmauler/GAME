@@ -182,6 +182,10 @@ function LobbyScreen({ onStart, onNewGame }: { onStart: () => void; onNewGame: (
             <Users className="w-5 h-5 mr-2" /> Join Multiplayer
           </Button>
 
+          <Button onClick={() => router.push('/players')} size="lg" variant="outline" className="w-full h-12 border-purple-500/50 text-purple-400 hover:bg-purple-500/10">
+            <Zap className="w-5 h-5 mr-2" /> View All Players
+          </Button>
+
           {hasSavedGame && (
             <Button onClick={() => confirm('Reset progress?') && onNewGame()} variant="ghost" className="w-full text-gray-500 hover:text-white text-sm">
               <RotateCcw className="w-4 h-4 mr-1" /> New Game

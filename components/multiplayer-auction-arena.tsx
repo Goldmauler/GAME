@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle } from "lucide-react"
+import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle, MessageCircle, Pause, Play, Plus, Send, Settings } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import AuctionLeaderboard from "./auction-leaderboard"
 
 // Lazy-load heavy components only when needed
@@ -106,6 +107,18 @@ function MultiplayerAuctionArena({
   const [showEndAuctionModal, setShowEndAuctionModal] = useState(false)
   const [endConfirmText, setEndConfirmText] = useState("")
 
+  // Chat and Pause state
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, userName: string, message: string, timestamp: number, type: string}>>([])
+  const [chatInput, setChatInput] = useState("")
+  const [showChat, setShowChat] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [pausedBy, setPausedBy] = useState<{teamId: string, userName: string} | null>(null)
+  const [showAddPlayerModal, setShowAddPlayerModal] = useState(false)
+  const [newPlayerName, setNewPlayerName] = useState("")
+  const [newPlayerRole, setNewPlayerRole] = useState("Batsman")
+  const [newPlayerBasePrice, setNewPlayerBasePrice] = useState(2)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
   // Reconnection state
   const [isReconnecting, setIsReconnecting] = useState(false)
   const [showReconnectPrompt, setShowReconnectPrompt] = useState(false)
@@ -128,7 +141,8 @@ function MultiplayerAuctionArena({
   const handleViewPlayerDetails = () => {
     if (currentPlayer && typeof window !== 'undefined') {
       sessionStorage.setItem('currentPlayer', JSON.stringify(currentPlayer))
-      window.open(`/player/${currentPlayer.id}`, '_blank')
+      const backUrl = encodeURIComponent(window.location.pathname)
+      window.open(`/player/${currentPlayer.id}?from=${backUrl}`, '_blank')
     }
   }
 
@@ -162,7 +176,10 @@ function MultiplayerAuctionArena({
         totalPlayersSold: sold,
         totalMoneySpent: spent,
         unsoldPlayersCount: unsold,
-        saleHistory: history_sales
+        saleHistory: history_sales,
+        isPaused: paused,
+        pausedBy: pausedByData,
+        chatMessages: chatMsgs
       } = payload
 
       if (updatedTeams) {
@@ -197,6 +214,9 @@ function MultiplayerAuctionArena({
       if (spent !== undefined) setTotalMoneySpent(spent)
       if (unsold !== undefined) setUnsoldPlayersCount(unsold)
       if (history_sales !== undefined) setSaleHistory(history_sales || [])
+      if (paused !== undefined) setIsPaused(paused)
+      if (pausedByData !== undefined) setPausedBy(pausedByData)
+      if (chatMsgs !== undefined) setChatMessages(chatMsgs || [])
     }
 
     const scheduleApply = () => {
@@ -276,6 +296,32 @@ function MultiplayerAuctionArena({
         // Handle player reconnected
         if (msg.type === "player_reconnected") {
           console.log(` ${msg.payload.userName} reconnected`)
+          return
+        }
+
+        // Handle chat message
+        if (msg.type === "chat-message") {
+          setChatMessages(prev => [...prev.slice(-99), msg.payload])
+          return
+        }
+
+        // Handle auction paused
+        if (msg.type === "auction-paused") {
+          setIsPaused(true)
+          setPausedBy({ teamId: '', userName: msg.payload.pausedBy })
+          return
+        }
+
+        // Handle auction resumed
+        if (msg.type === "auction-resumed") {
+          setIsPaused(false)
+          setPausedBy(null)
+          return
+        }
+
+        // Handle player added
+        if (msg.type === "player-added") {
+          console.log("New player added:", msg.payload.player)
           return
         }
       } catch (e) {
@@ -403,6 +449,72 @@ function MultiplayerAuctionArena({
     }))
   }
 
+  // Handle pause auction
+  const handlePauseAuction = () => {
+    if (!wsRef.current || !wsConnected || phase !== 'active' || isPaused) return
+
+    wsRef.current.send(JSON.stringify({
+      type: "pause-auction",
+      payload: {
+        roomCode,
+        teamId: localTeamId,
+      },
+    }))
+  }
+
+  // Handle resume auction
+  const handleResumeAuction = () => {
+    if (!wsRef.current || !wsConnected || !isPaused) return
+
+    wsRef.current.send(JSON.stringify({
+      type: "resume-auction",
+      payload: {
+        roomCode,
+        teamId: localTeamId,
+      },
+    }))
+  }
+
+  // Handle send chat message
+  const handleSendChat = () => {
+    if (!wsRef.current || !wsConnected || !chatInput.trim()) return
+
+    wsRef.current.send(JSON.stringify({
+      type: "chat-message",
+      payload: {
+        message: chatInput.trim(),
+      },
+    }))
+    setChatInput("")
+  }
+
+  // Handle add custom player
+  const handleAddPlayer = () => {
+    if (!wsRef.current || !wsConnected || !newPlayerName.trim() || !isHost) return
+
+    wsRef.current.send(JSON.stringify({
+      type: "add-player",
+      payload: {
+        player: {
+          name: newPlayerName.trim(),
+          role: newPlayerRole,
+          basePrice: newPlayerBasePrice,
+          rating: 75,
+        },
+      },
+    }))
+    setNewPlayerName("")
+    setNewPlayerBasePrice(2)
+    setShowAddPlayerModal(false)
+  }
+
+  // Auto scroll chat to bottom
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages])
+
   // Handle withdraw from current bidding
   const handleWithdraw = () => {
     setHasWithdrawn(true)
@@ -477,22 +589,22 @@ function MultiplayerAuctionArena({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-6 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-2 sm:py-6 px-2 sm:px-4">
       {/* Reconnection Prompt */}
       {showReconnectPrompt && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-orange-600/95 backdrop-blur-sm border-2 border-orange-400 rounded-xl px-6 py-4 shadow-2xl max-w-md"
+          className="fixed top-2 left-2 right-2 sm:left-1/2 sm:right-auto sm:transform sm:-translate-x-1/2 z-50 bg-orange-600/95 backdrop-blur-sm border-2 border-orange-400 rounded-xl px-4 py-3 shadow-2xl"
         >
-          <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-            <div>
-              <p className="text-white font-bold">Connection Lost</p>
-              <p className="text-orange-100 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            <div className="flex-1">
+              <p className="text-white font-bold text-sm">Connection Lost</p>
+              <p className="text-orange-100 text-xs">
                 {isReconnecting
-                  ? `Reconnecting... (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`
-                  : "Trying to reconnect to the game..."
+                  ? `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`
+                  : "Trying to reconnect..."
                 }
               </p>
             </div>
@@ -500,7 +612,7 @@ function MultiplayerAuctionArena({
               onClick={handleManualReconnect}
               size="sm"
               variant="outline"
-              className="ml-auto border-white text-white hover:bg-white/20"
+              className="border-white text-white hover:bg-white/20 text-xs px-2 py-1"
             >
               Retry
             </Button>
@@ -508,92 +620,118 @@ function MultiplayerAuctionArena({
         </motion.div>
       )}
 
-      <div className="max-w-[1600px] mx-auto">
-        {/* Header with User Team Info */}
-        <div className="flex items-start justify-between mb-6">
-          {/* Left: Room Info */}
-          <div className="flex-1">
-            <div className="inline-flex items-center gap-3 bg-slate-800/50 border border-orange-500/50 rounded-xl px-6 py-3 mb-3">
-              <Trophy className="w-5 h-5 text-orange-500" />
-              <p className="text-sm text-gray-400">Room Code: <span className="text-white font-bold text-lg ml-2">{roomCode}</span></p>
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-2">IPL Auction Arena</h1>
-            <p className="text-gray-400">Player {playerIndex + 1} of {totalPlayers}</p>
-          </div>
-
-          {/* Right: User's Team Card */}
-          {localTeam && (
-            <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-2 border-blue-500/50 shadow-xl shadow-blue-500/20 min-w-[280px]">
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Crown className="w-5 h-5 text-blue-400" />
-                  <h3 className="text-lg font-bold text-white">Your Team</h3>
-                </div>
-                <div className="space-y-2">
-                  <div className="bg-slate-900/50 rounded-lg p-2">
-                    <p className="text-xs text-gray-400 mb-1">Team Name</p>
-                    <p className="text-white font-bold truncate">{localTeam.name}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-slate-900/50 rounded-lg p-2 text-center">
-                      <p className="text-xs text-gray-400 mb-1">Budget</p>
-                      <p className="text-green-400 font-bold text-lg">₹{localTeam.budget}</p>
-                    </div>
-                    <div className="bg-slate-900/50 rounded-lg p-2 text-center">
-                      <p className="text-xs text-gray-400 mb-1">Players</p>
-                      <p className="text-white font-bold text-lg">{localTeam.players.length}/{localTeam.maxPlayers}</p>
-                    </div>
-                  </div>
-                  <div className="bg-slate-900/50 rounded-lg p-2">
-                    <p className="text-xs text-gray-400 mb-1">Spent</p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-orange-400 font-bold">₹{100 - localTeam.budget} Cr</p>
-                      <p className="text-xs text-gray-500">{Math.round(((100 - localTeam.budget) / 100) * 100)}%</p>
-                    </div>
-                    <div className="w-full bg-slate-700 rounded-full h-1.5 mt-2">
-                      <div
-                        className="bg-gradient-to-r from-orange-500 to-red-500 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${((100 - localTeam.budget) / 100) * 100}%` }}
-                      />
-                    </div>
-                  </div>
+      {/* Paused Banner - Always Visible at Top */}
+      <AnimatePresence>
+        {isPaused && phase === 'active' && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-yellow-600 to-orange-600 border-b-4 border-yellow-400 shadow-2xl"
+          >
+            <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  <Pause className="w-6 h-6 text-white" />
+                </motion.div>
+                <div>
+                  <p className="text-white font-bold text-sm sm:text-base">AUCTION PAUSED</p>
+                  {pausedBy && <p className="text-yellow-200 text-xs">by {pausedBy.userName}</p>}
                 </div>
               </div>
-            </Card>
+              <Button
+                onClick={handleResumeAuction}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg"
+              >
+                <Play className="w-4 h-4 mr-1" />
+                Resume
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={`max-w-[1600px] mx-auto ${isPaused ? 'pt-16' : ''}`}>
+        {/* Mobile Header - Compact */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3 sm:mb-6">
+          {/* Room Info - Compact for Mobile */}
+          <div className="flex items-center justify-between sm:block">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-800/50 border border-orange-500/50 rounded-lg px-3 py-2">
+                <Trophy className="w-4 h-4 text-orange-500" />
+                <span className="text-xs text-gray-400">Room:</span>
+                <span className="text-white font-bold text-sm">{roomCode}</span>
+              </div>
+              <a 
+                href={`/players?from=${encodeURIComponent(window?.location?.pathname || '/rooms')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 bg-purple-500/20 border border-purple-500/50 rounded-lg px-2 py-2 text-purple-400 hover:bg-purple-500/30 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                <span className="text-xs font-medium hidden sm:inline">All Players</span>
+              </a>
+              <a 
+                href={`/teams/${roomCode}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 bg-green-500/20 border border-green-500/50 rounded-lg px-2 py-2 text-green-400 hover:bg-green-500/30 transition-colors"
+              >
+                <Trophy className="w-4 h-4" />
+                <span className="text-xs font-medium hidden sm:inline">View Teams</span>
+              </a>
+            </div>
+            <div className="sm:hidden flex items-center gap-2">
+              <Badge className="bg-slate-800 text-gray-300 text-xs">
+                {playerIndex + 1}/{totalPlayers}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Your Team Card - Mobile Compact */}
+          {localTeam && (
+            <div className="bg-gradient-to-r from-blue-600/20 to-blue-800/20 border border-blue-500/50 rounded-lg p-2 sm:p-3 flex items-center gap-3 sm:min-w-[250px]">
+              <div className="flex-1 min-w-0">
+                <p className="text-blue-400 text-xs font-semibold truncate">{localTeam.name}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-green-400 font-bold text-sm">₹{localTeam.budget}Cr</span>
+                  <span className="text-gray-500 text-xs">|</span>
+                  <span className="text-white text-xs">{localTeam.players.length}/{localTeam.maxPlayers} players</span>
+                </div>
+              </div>
+              {isMyBid && (
+                <Badge className="bg-orange-500 text-white text-xs animate-pulse">LEADING</Badge>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Auction Status Banner - Round, Category, Stats */}
-        <div className="mb-6">
-          <Card className="bg-gradient-to-r from-purple-900/30 via-slate-800/50 to-blue-900/30 border border-purple-500/30">
-            <div className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Round</p>
-                  <p className="text-xl font-bold text-white">{currentRound} / {maxRounds}</p>
-                  {currentRound === 2 && (
-                    <Badge className="mt-1 bg-red-500/20 text-red-400 text-[10px]">Accelerated</Badge>
-                  )}
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Category</p>
-                  <p className="text-sm font-bold text-purple-400">{categoryName}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Players Sold</p>
-                  <p className="text-xl font-bold text-green-400">{totalPlayersSold}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Total Spent</p>
-                  <p className="text-xl font-bold text-orange-400">₹{totalMoneySpent} Cr</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400 mb-1">Unsold</p>
-                  <p className="text-xl font-bold text-red-400">{unsoldPlayersCount}</p>
-                </div>
-              </div>
-            </div>
-          </Card>
+        {/* Stats Bar - Compact Mobile */}
+        <div className="grid grid-cols-5 gap-1 sm:gap-3 mb-3 sm:mb-6 bg-slate-800/30 rounded-lg p-2">
+          <div className="text-center">
+            <p className="text-[10px] text-gray-500">Round</p>
+            <p className="text-sm font-bold text-white">{currentRound}/{maxRounds}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-gray-500">Category</p>
+            <p className="text-[10px] sm:text-xs font-bold text-purple-400 truncate">{categoryName}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-gray-500">Sold</p>
+            <p className="text-sm font-bold text-green-400">{totalPlayersSold}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-gray-500">Spent</p>
+            <p className="text-sm font-bold text-orange-400">₹{totalMoneySpent}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-gray-500">Unsold</p>
+            <p className="text-sm font-bold text-red-400">{unsoldPlayersCount}</p>
+          </div>
         </div>
 
         {/* Break Screen Overlay */}
@@ -603,61 +741,44 @@ function MultiplayerAuctionArena({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             >
               <motion.div
                 initial={{ scale: 0.5, y: 50 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.5, y: 50 }}
                 transition={{ type: "spring", duration: 0.5 }}
+                className="w-full max-w-md"
               >
-                <Card className="bg-gradient-to-br from-slate-800 via-slate-900 to-black border-2 border-orange-500 shadow-2xl shadow-orange-500/50 max-w-2xl mx-4">
-                  <div className="p-12 text-center">
+                <Card className="bg-gradient-to-br from-slate-800 via-slate-900 to-black border-2 border-orange-500 shadow-2xl shadow-orange-500/50">
+                  <div className="p-6 sm:p-10 text-center">
                     {/* Break Icon */}
                     <motion.div
-                      animate={{
-                        scale: [1, 1.2, 1],
-                        rotate: [0, 10, -10, 0],
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                      }}
-                      className="mb-6"
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="text-5xl sm:text-7xl mb-4"
                     >
-                      {breakType === 'snack' && <span className="text-8xl">Break</span>}
-                      {breakType === 'category' && <span className="text-8xl">Done</span>}
-                      {breakType === 'strategic' && <span className="text-8xl">Pause</span>}
+                      {breakType === 'snack' && '☕'}
+                      {breakType === 'category' && '✅'}
+                      {breakType === 'strategic' && '⏸️'}
                     </motion.div>
 
-                    {/* Break Title */}
-                    <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-4">
+                    <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-3">
                       {breakType === 'snack' && 'Snack Break!'}
                       {breakType === 'category' && 'Category Complete!'}
                       {breakType === 'strategic' && 'Strategic Timeout'}
                     </h2>
 
-                    {/* Break Message */}
-                    <p className="text-xl text-white mb-6">{breakMessage}</p>
+                    <p className="text-sm sm:text-base text-white mb-4">{breakMessage}</p>
 
-                    {/* Countdown */}
-                    <div className="mb-6">
-                      <motion.div
-                        animate={{
-                          scale: [1, 1.1, 1],
-                        }}
-                        transition={{
-                          duration: 1,
-                          repeat: Infinity,
-                        }}
-                        className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500"
-                      >
-                        {breakTimeLeft}s
-                      </motion.div>
-                      <p className="text-gray-400 mt-2">Resuming soon...</p>
-                    </div>
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 mb-4"
+                    >
+                      {breakTimeLeft}s
+                    </motion.div>
 
-                    {/* Progress Bar */}
                     <div className="w-full bg-slate-700 rounded-full h-2">
                       <motion.div
                         className="bg-gradient-to-r from-orange-500 to-red-500 h-2 rounded-full"
@@ -673,347 +794,253 @@ function MultiplayerAuctionArena({
           )}
         </AnimatePresence>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Panel - Current Player */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Timer and Status - Enhanced */}
-            <Card className="bg-gradient-to-r from-slate-800 via-slate-800/90 to-slate-900 border-slate-700/50 shadow-xl">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
+        {/* Main Content - Mobile First Layout */}
+        <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-6">
+          {/* Player & Bidding Section */}
+          <div className="sm:col-span-2 space-y-3">
+            {/* Timer - Mobile Compact */}
+            <Card className="bg-gradient-to-r from-slate-800 to-slate-900 border-slate-700/50">
+              <div className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <motion.div
-                      animate={{
-                        rotate: timeLeft <= 10 ? [0, 10, -10, 0] : 0,
-                      }}
-                      transition={{
-                        duration: 0.5,
-                        repeat: timeLeft <= 10 ? Infinity : 0,
-                      }}
+                      animate={{ rotate: timeLeft <= 10 ? [0, 10, -10, 0] : 0 }}
+                      transition={{ duration: 0.5, repeat: timeLeft <= 10 ? Infinity : 0 }}
                     >
-                      <Clock className={`w-6 h-6 ${timeLeft <= 10 ? 'text-red-500' : 'text-orange-500'}`} />
+                      <Clock className={`w-5 h-5 ${timeLeft <= 10 ? 'text-red-500' : 'text-orange-500'}`} />
                     </motion.div>
-                    <span className="text-gray-300 font-semibold text-lg">Time Remaining</span>
+                    <span className="text-gray-400 text-sm">Time Left</span>
                   </div>
-                  <motion.div
-                    animate={{
-                      scale: timeLeft <= 10 ? [1, 1.1, 1] : 1,
-                    }}
-                    transition={{
-                      duration: 0.5,
-                      repeat: timeLeft <= 10 ? Infinity : 0,
-                    }}
-                    className={`text-5xl font-black ${timeLeft <= 10
-                        ? "text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500"
+                  <motion.span
+                    animate={{ scale: timeLeft <= 10 ? [1, 1.1, 1] : 1 }}
+                    transition={{ duration: 0.5, repeat: timeLeft <= 10 ? Infinity : 0 }}
+                    className={`text-3xl sm:text-4xl font-black ${
+                      timeLeft <= 10 
+                        ? "text-red-500" 
+                        : timeLeft <= 20 
+                        ? "text-orange-500" 
                         : "text-white"
-                      }`}
+                    }`}
                   >
                     {timeLeft}s
-                  </motion.div>
+                  </motion.span>
                 </div>
-
-                {/* Progress Bar */}
-                <div className="relative">
-                  <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
-                    <motion.div
-                      className={`h-3 rounded-full ${timeLeft <= 10
-                          ? "bg-gradient-to-r from-red-500 to-orange-500"
-                          : "bg-gradient-to-r from-orange-500 to-yellow-500"
-                        }`}
-                      initial={{ width: "100%" }}
-                      animate={{ width: `${(timeLeft / 60) * 100}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </div>
-                  {/* Pulse effect for low time */}
-                  {timeLeft <= 10 && (
-                    <motion.div
-                      className="absolute inset-0 bg-red-500/20 rounded-full"
-                      animate={{
-                        opacity: [0.5, 0, 0.5],
-                      }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Time warnings */}
-                <div className="mt-3 flex items-center justify-between text-xs">
-                  <span className="text-gray-500">
-                    {timeLeft > 30 ? "Plenty of time" : timeLeft > 10 ? "Time running out" : "Hurry up!"}
-                  </span>
-                  <span className="text-gray-500">
-                    {Math.floor((timeLeft / 60) * 100)}% remaining
-                  </span>
+                <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                  <motion.div
+                    className={`h-2 rounded-full ${
+                      timeLeft <= 10 ? "bg-red-500" : "bg-gradient-to-r from-orange-500 to-yellow-500"
+                    }`}
+                    animate={{ width: `${(timeLeft / 60) * 100}%` }}
+                    transition={{ duration: 0.3 }}
+                  />
                 </div>
               </div>
             </Card>
 
-            {/* Current Player Card - Simplified */}
-            <Card className="bg-gradient-to-br from-slate-800 via-slate-800/80 to-slate-900 border-2 border-orange-500/50 shadow-2xl shadow-orange-500/20">
-              <div className="p-6">
-                {/* Player Info - Compact */}
-                <div className="mb-4">
-                  <motion.h2
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    onClick={handleViewPlayerDetails}
-                    className="text-3xl sm:text-4xl font-black text-white mb-3 bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent cursor-pointer hover:from-orange-300 hover:to-red-400 transition-all flex items-center gap-2"
-                  >
-                    {currentPlayer.name}
-                    <Info className="w-6 h-6 text-orange-400 animate-pulse" />
-                  </motion.h2>
-
-                  <p className="text-xs text-gray-400 mb-3">Click name for detailed stats</p>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className={`${getRoleColor(currentPlayer.role)} border px-4 py-1.5 text-sm font-semibold`}>
-                      <span className="flex items-center gap-2">
-                        {getRoleIcon(currentPlayer.role)}
+            {/* Current Player Card - Mobile Optimized */}
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-orange-500/50">
+              <div className="p-3 sm:p-5">
+                {/* Player Name & Info */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <motion.h2
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 truncate"
+                    >
+                      {currentPlayer.name}
+                    </motion.h2>
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                      <Badge className={`${getRoleColor(currentPlayer.role)} text-xs px-2 py-0.5`}>
                         {currentPlayer.role}
-                      </span>
-                    </Badge>
-                    <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-4 py-1.5">
-                      <span className="flex items-center gap-2">
-                        <Star className="w-4 h-4 fill-yellow-400" />
-                        Rating: {currentPlayer.rating}
-                      </span>
-                    </Badge>
+                      </Badge>
+                      <Badge className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5">
+                        ⭐ {currentPlayer.rating}
+                      </Badge>
+                    </div>
                   </div>
+                  <Button
+                    onClick={handleViewPlayerDetails}
+                    size="sm"
+                    variant="outline"
+                    className="border-orange-500/50 text-orange-400 text-xs"
+                  >
+                    <Info className="w-3 h-3 mr-1" />
+                    Stats
+                  </Button>
                 </div>
 
-                {/* Stats Grid - Quick Overview Only */}
+                {/* Quick Stats - Horizontal on Mobile */}
                 {currentPlayer.stats && (
-                  <div>
-                    <h4 className="text-orange-400 font-semibold mb-3 flex items-center gap-2 text-sm">
-                      <TrendingUp className="w-4 h-4" />
-                      Quick Stats
-                    </h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-lg p-3 text-center">
-                        <Users className="w-4 h-4 text-blue-400 mx-auto mb-1" />
-                        <p className="text-gray-400 text-[10px] mb-1">Matches</p>
-                        <p className="text-white text-xl font-black">{currentPlayer.stats.matches || 0}</p>
-                      </div>
-
-                      {currentPlayer.stats.runs !== undefined && (
-                        <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-lg p-3 text-center">
-                          <Target className="w-4 h-4 text-green-400 mx-auto mb-1" />
-                          <p className="text-gray-400 text-[10px] mb-1">Runs</p>
-                          <p className="text-white text-xl font-black">{currentPlayer.stats.runs}</p>
-                        </div>
-                      )}
-
-                      {currentPlayer.stats.wickets !== undefined && (
-                        <div className="bg-gradient-to-br from-red-600/20 to-red-800/20 border border-red-500/30 rounded-lg p-3 text-center">
-                          <Zap className="w-4 h-4 text-red-400 mx-auto mb-1" />
-                          <p className="text-gray-400 text-[10px] mb-1">Wickets</p>
-                          <p className="text-white text-xl font-black">{currentPlayer.stats.wickets}</p>
-                        </div>
-                      )}
+                  <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+                    <div className="flex-shrink-0 bg-blue-600/20 border border-blue-500/30 rounded-lg px-3 py-1.5 text-center">
+                      <p className="text-[10px] text-gray-400">Matches</p>
+                      <p className="text-white font-bold">{currentPlayer.stats.matches || 0}</p>
                     </div>
+                    {currentPlayer.stats.runs !== undefined && (
+                      <div className="flex-shrink-0 bg-green-600/20 border border-green-500/30 rounded-lg px-3 py-1.5 text-center">
+                        <p className="text-[10px] text-gray-400">Runs</p>
+                        <p className="text-white font-bold">{currentPlayer.stats.runs}</p>
+                      </div>
+                    )}
+                    {currentPlayer.stats.wickets !== undefined && (
+                      <div className="flex-shrink-0 bg-red-600/20 border border-red-500/30 rounded-lg px-3 py-1.5 text-center">
+                        <p className="text-[10px] text-gray-400">Wickets</p>
+                        <p className="text-white font-bold">{currentPlayer.stats.wickets}</p>
+                      </div>
+                    )}
+                    {currentPlayer.stats.average !== undefined && (
+                      <div className="flex-shrink-0 bg-purple-600/20 border border-purple-500/30 rounded-lg px-3 py-1.5 text-center">
+                        <p className="text-[10px] text-gray-400">Avg</p>
+                        <p className="text-white font-bold">{currentPlayer.stats.average}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Current Bid - Enhanced */}
-                <motion.div
-                  animate={{
-                    scale: timeLeft <= 10 ? [1, 1.02, 1] : 1,
-                  }}
-                  transition={{
-                    duration: 0.5,
-                    repeat: timeLeft <= 10 ? Infinity : 0,
-                  }}
-                  className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-orange-900/20 rounded-2xl p-8 mb-4 border-2 border-orange-500/30"
-                >
-                  <div className="flex items-center justify-between mb-4">
+                {/* Current Bid Section - Mobile Optimized */}
+                <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-orange-500/30">
+                  <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Gavel className="w-5 h-5 text-orange-400" />
-                      <span className="text-gray-400 font-semibold">Current Bid</span>
+                      <Gavel className="w-4 h-4 text-orange-400" />
+                      <span className="text-gray-400 text-sm">Current Bid</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500">Base:</span>
-                      <Badge className="bg-slate-700/50 text-gray-300 border border-slate-600">
-                        ₹{currentPlayer.basePrice}Cr
-                      </Badge>
-                    </div>
+                    <span className="text-gray-500 text-xs">Base: ₹{currentPlayer.basePrice}Cr</span>
                   </div>
 
-                  <div className="flex items-center justify-between gap-6">
-                    <div className="flex-1">
-                      <motion.div
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <motion.p
                         key={currentPrice}
                         initial={{ scale: 1.2, color: "#f97316" }}
                         animate={{ scale: 1, color: "#ffffff" }}
-                        transition={{ duration: 0.3 }}
+                        className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500"
                       >
-                        <p className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-red-500 to-orange-600">
-                          ₹{currentPrice}Cr
-                        </p>
-                      </motion.div>
-
+                        ₹{currentPrice}Cr
+                      </motion.p>
                       {highestBidderTeam && (
-                        <motion.div
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="mt-2 flex items-center gap-2"
-                        >
-                          <Crown className="w-4 h-4 text-yellow-400" />
-                          <p className="text-sm text-gray-400">
-                            Leading: <span className="text-white font-bold">{highestBidderTeam.name}</span>
-                          </p>
-                        </motion.div>
-                      )}
-
-                      {/* Budget Warning */}
-                      {localTeam && localTeam.budget < currentPrice + 5 && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="mt-2 flex items-center gap-2 text-red-400 text-sm"
-                        >
-                          <TrendingDown className="w-4 h-4" />
-                          Low budget! ₹{localTeam.budget}Cr remaining
-                        </motion.div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                      <Button
-                        onClick={handleBid}
-                        disabled={!canBid}
-                        size="lg"
-                        className={`
-                          px-8 py-6 text-lg font-bold shadow-2xl
-                          ${isMyBid
-                            ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-green-500/50"
-                            : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 shadow-orange-500/50"
-                          }
-                          ${!canBid ? "opacity-50 cursor-not-allowed grayscale" : "hover:scale-105 active:scale-95"}
-                          transition-all duration-200
-                        `}
-                      >
-                        <Gavel className="w-6 h-6 mr-2" />
-                        {isMyBid ? `Raise +₹1Cr` : `Bid ₹${currentPrice + 1}Cr`}
-                      </Button>
-
-                      {/* Strategic Timeout Button */}
-                      {strategicTimeouts[localTeamId] > 0 && phase === 'active' && (
-                        <Button
-                          onClick={handleStrategicTimeout}
-                          variant="outline"
-                          size="sm"
-                          className="bg-purple-900/30 border-purple-500/50 text-purple-400 hover:bg-purple-900/50 hover:text-purple-300"
-                        >
-                          <Clock className="w-4 h-4 mr-2" />
-                          Strategic Timeout ({strategicTimeouts[localTeamId]} left)
-                        </Button>
-                      )}
-
-                      {/* Mark Unsold Button - Host Only */}
-                      {isHost && phase === 'active' && (
-                        <Button
-                          onClick={handleMarkUnsold}
-                          variant="outline"
-                          size="sm"
-                          className="bg-red-900/30 border-red-500/50 text-red-400 hover:bg-red-900/50 hover:text-red-300"
-                        >
-                          <XCircle className="w-4 h-4 mr-2" />
-                          Mark as Unsold
-                        </Button>
-                      )}
-
-                      {/* View Sale History Button */}
-                      <Button
-                        onClick={() => setShowSaleHistory(true)}
-                        variant="outline"
-                        size="sm"
-                        className="bg-blue-900/30 border-blue-500/50 text-blue-400 hover:bg-blue-900/50 hover:text-blue-300"
-                      >
-                        <History className="w-4 h-4 mr-2" />
-                        View Sale History ({saleHistory.length})
-                      </Button>
-
-                      {/* Withdraw Button */}
-                      <Button
-                        onClick={handleWithdraw}
-                        disabled={hasWithdrawn || isMyBid}
-                        variant="outline"
-                        size="sm"
-                        className={`${
-                          hasWithdrawn || isMyBid
-                            ? 'bg-slate-800 border-slate-600 text-slate-500 cursor-not-allowed'
-                            : 'bg-yellow-900/30 border-yellow-500/50 text-yellow-400 hover:bg-yellow-900/50 hover:text-yellow-300'
-                        }`}
-                      >
-                        <span className="mr-2">⏸️</span>
-                        {hasWithdrawn ? 'Withdrawn' : isMyBid ? "Can't Withdraw" : 'Withdraw from Bid'}
-                      </Button>
-
-                      {/* End Auction Button */}
-                      <Button
-                        onClick={() => setShowEndAuctionModal(true)}
-                        variant="outline"
-                        size="sm"
-                        className="bg-red-900/30 border-red-500/50 text-red-400 hover:bg-red-900/50 hover:text-red-300"
-                      >
-                        <span className="mr-2">🛑</span>
-                        End Auction
-                      </Button>
-
-                      {canBid && (
-                        <p className="text-xs text-center text-gray-500">
-                          Next: ₹{currentPrice + 1}Cr
+                        <p className="text-xs text-gray-400 mt-1">
+                          <Crown className="w-3 h-3 inline text-yellow-400 mr-1" />
+                          {highestBidderTeam.name}
                         </p>
                       )}
                     </div>
-                  </div>
-                </motion.div>
 
-                {/* Bid History - Enhanced */}
+                    {/* Bid Button - Large for Mobile */}
+                    <Button
+                      onClick={handleBid}
+                      disabled={!canBid || isPaused}
+                      size="lg"
+                      className={`
+                        px-6 py-4 text-base font-bold shadow-xl min-w-[120px]
+                        ${isMyBid
+                          ? "bg-gradient-to-r from-green-600 to-green-700"
+                          : "bg-gradient-to-r from-orange-600 to-red-600"
+                        }
+                        ${(!canBid || isPaused) ? "opacity-50 cursor-not-allowed" : "hover:scale-105 active:scale-95"}
+                        transition-all duration-200
+                      `}
+                    >
+                      <Gavel className="w-5 h-5 mr-2" />
+                      {isMyBid ? `+₹1Cr` : `₹${currentPrice + 1}Cr`}
+                    </Button>
+                  </div>
+
+                  {/* Budget Warning */}
+                  {localTeam && localTeam.budget < currentPrice + 5 && (
+                    <p className="text-red-400 text-xs mt-2 flex items-center gap-1">
+                      <TrendingDown className="w-3 h-3" />
+                      Low budget! ₹{localTeam.budget}Cr left
+                    </p>
+                  )}
+                </div>
+
+                {/* Action Buttons Row - Mobile */}
+                <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                  {/* Pause/Resume Button */}
+                  {phase === 'active' && !isPaused && (
+                    <Button
+                      onClick={handlePauseAuction}
+                      size="sm"
+                      variant="outline"
+                      className="flex-shrink-0 border-yellow-500/50 text-yellow-400 text-xs"
+                    >
+                      <Pause className="w-3 h-3 mr-1" />
+                      Pause
+                    </Button>
+                  )}
+                  
+                  {/* Strategic Timeout */}
+                  {strategicTimeouts[localTeamId] > 0 && phase === 'active' && !isPaused && (
+                    <Button
+                      onClick={handleStrategicTimeout}
+                      size="sm"
+                      variant="outline"
+                      className="flex-shrink-0 border-purple-500/50 text-purple-400 text-xs"
+                    >
+                      <Clock className="w-3 h-3 mr-1" />
+                      Timeout ({strategicTimeouts[localTeamId]})
+                    </Button>
+                  )}
+
+                  {/* Mark Unsold - Host Only */}
+                  {isHost && phase === 'active' && !isPaused && (
+                    <Button
+                      onClick={handleMarkUnsold}
+                      size="sm"
+                      variant="outline"
+                      className="flex-shrink-0 border-red-500/50 text-red-400 text-xs"
+                    >
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Unsold
+                    </Button>
+                  )}
+
+                  {/* View History */}
+                  <Button
+                    onClick={() => setShowSaleHistory(true)}
+                    size="sm"
+                    variant="outline"
+                    className="flex-shrink-0 border-blue-500/50 text-blue-400 text-xs"
+                  >
+                    <History className="w-3 h-3 mr-1" />
+                    History
+                  </Button>
+
+                  {/* Add Player - Host Only */}
+                  {isHost && (
+                    <Button
+                      onClick={() => setShowAddPlayerModal(true)}
+                      size="sm"
+                      variant="outline"
+                      className="flex-shrink-0 border-green-500/50 text-green-400 text-xs"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Player
+                    </Button>
+                  )}
+                </div>
+
+                {/* Bid History - Compact */}
                 {bidHistory.length > 0 && (
-                  <div className="bg-slate-800/30 rounded-xl p-5 backdrop-blur-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <TrendingUp className="w-5 h-5 text-green-400" />
-                      <h3 className="text-lg font-bold text-white">Bid History</h3>
-                      <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                        {bidHistory.length} bids
-                      </Badge>
-                    </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                      {bidHistory.slice().reverse().map((bid, idx) => (
-                        <motion.div
+                  <div className="mt-3 bg-slate-800/50 rounded-lg p-2">
+                    <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      Recent Bids ({bidHistory.length})
+                    </p>
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {bidHistory.slice().reverse().slice(0, 5).map((bid, idx) => (
+                        <div
                           key={idx}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className={`
-                            flex items-center justify-between 
-                            bg-gradient-to-r rounded-lg px-4 py-3
-                            border transition-all hover:scale-102
-                            ${idx === 0
-                              ? 'from-orange-900/30 to-orange-800/20 border-orange-500/50'
-                              : 'from-slate-700/30 to-slate-700/20 border-slate-600/30'
-                            }
-                          `}
+                          className={`flex items-center justify-between text-xs px-2 py-1 rounded ${
+                            idx === 0 ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-slate-700/30'
+                          }`}
                         >
-                          <div className="flex items-center gap-3">
-                            {idx === 0 && <Crown className="w-4 h-4 text-yellow-400" />}
-                            <span className="text-white font-semibold">{bid.teamName}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-lg font-bold ${idx === 0 ? 'text-orange-400' : 'text-gray-300'}`}>
-                              ₹{bid.price}Cr
-                            </span>
-                            {idx === 0 && (
-                              <Badge className="bg-green-500/20 text-green-400 border border-green-500/30 text-xs">
-                                Latest
-                              </Badge>
-                            )}
-                          </div>
-                        </motion.div>
+                          <span className="text-white truncate">{bid.teamName}</span>
+                          <span className={`font-bold ${idx === 0 ? 'text-orange-400' : 'text-gray-400'}`}>
+                            ₹{bid.price}Cr
+                          </span>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1022,90 +1049,267 @@ function MultiplayerAuctionArena({
             </Card>
           </div>
 
-          {/* Right Panel - Teams Overview */}
+          {/* Right Panel - Teams & Chat */}
           <div className="space-y-3">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-orange-500" />
-              Teams ({teams.filter(t => t.players.length > 0 || t.id === localTeamId).length})
-            </h3>
-
             {/* View Teams Button */}
             <Button
               onClick={() => setShowAllTeamsModal(true)}
-              className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-6 text-base shadow-lg"
+              className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-3 text-sm shadow-lg"
             >
-              <ExternalLink className="w-5 h-5 mr-2" />
-              View All Teams & Squads
+              <Users className="w-4 h-4 mr-2" />
+              View All Teams
             </Button>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-2">
-              <Card className="bg-gradient-to-br from-purple-600/10 to-purple-800/10 border-purple-500/30 p-3">
-                <div className="text-center">
-                  <Users className="w-4 h-4 text-purple-400 mx-auto mb-1" />
-                  <p className="text-gray-400 text-[9px]">Teams</p>
-                  <p className="text-white text-lg font-bold">
-                    {teams.filter(team => team.players.length > 0 || team.id === localTeamId).length}
-                  </p>
-                </div>
-              </Card>
-              <Card className="bg-gradient-to-br from-orange-600/10 to-orange-800/10 border-orange-500/30 p-3">
-                <div className="text-center">
-                  <Trophy className="w-4 h-4 text-orange-400 mx-auto mb-1" />
-                  <p className="text-gray-400 text-[9px]">Players</p>
-                  <p className="text-white text-lg font-bold">
-                    {teams.reduce((sum, team) => sum + team.players.length, 0)}
-                  </p>
-                </div>
-              </Card>
-              <Card className="bg-gradient-to-br from-green-600/10 to-green-800/10 border-green-500/30 p-3">
-                <div className="text-center">
-                  <DollarSign className="w-4 h-4 text-green-400 mx-auto mb-1" />
-                  <p className="text-gray-400 text-[9px]">Spent</p>
-                  <p className="text-white text-lg font-bold">
-                    ₹{teams.reduce((sum, team) => sum + (100 - team.budget), 0).toFixed(0)}
-                  </p>
-                </div>
-              </Card>
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[10px] text-gray-500">Total Players</p>
+                <p className="text-lg font-bold text-white">
+                  {teams.reduce((sum, team) => sum + team.players.length, 0)}
+                </p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-[10px] text-gray-500">Total Spent</p>
+                <p className="text-lg font-bold text-orange-400">
+                  ₹{teams.reduce((sum, team) => sum + (100 - team.budget), 0).toFixed(0)}Cr
+                </p>
+              </div>
             </div>
 
-            {/* Your Team Status */}
-            {localTeam && (
-              <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/50 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-blue-400" />
-                    <p className="text-blue-400 font-semibold text-xs">Your Team</p>
-                  </div>
-                  {highestBidder === localTeamId && (
-                    <Badge className="bg-orange-500/20 text-orange-400 text-[9px] animate-pulse">
-                      BIDDING
-                    </Badge>
-                  )}
+            {/* Chat Toggle */}
+            <Button
+              onClick={() => setShowChat(!showChat)}
+              variant="outline"
+              className={`w-full text-xs ${showChat ? 'bg-blue-600/20 border-blue-500' : 'border-slate-600'}`}
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              {showChat ? 'Hide Chat' : 'Show Chat'}
+              {chatMessages.length > 0 && !showChat && (
+                <Badge className="ml-2 bg-red-500 text-white text-[10px]">{chatMessages.length}</Badge>
+              )}
+            </Button>
+
+            {/* Chat Panel */}
+            <AnimatePresence>
+              {showChat && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                >
+                  <Card className="bg-slate-800/80 border-slate-600/50">
+                    <div className="p-2">
+                      <div className="h-32 sm:h-40 overflow-y-auto space-y-1 mb-2 bg-slate-900/50 rounded p-1">
+                        {chatMessages.length === 0 ? (
+                          <p className="text-center text-gray-500 text-xs py-4">No messages yet</p>
+                        ) : (
+                          chatMessages.map((msg) => (
+                            <div
+                              key={msg.id}
+                              className={`rounded p-1.5 text-xs ${
+                                msg.type === 'system'
+                                  ? 'bg-blue-500/20 text-blue-300 text-center'
+                                  : 'bg-slate-700/50'
+                              }`}
+                            >
+                              {msg.type !== 'system' && (
+                                <span className="text-orange-400 font-semibold">{msg.userName}: </span>
+                              )}
+                              <span className="text-white">{msg.message}</span>
+                            </div>
+                          ))
+                        )}
+                        <div ref={chatEndRef} />
+                      </div>
+                      <div className="flex gap-1">
+                        <Input
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
+                          placeholder="Message..."
+                          className="bg-slate-900/50 border-slate-600 text-white text-xs h-8"
+                        />
+                        <Button
+                          onClick={handleSendChat}
+                          disabled={!chatInput.trim()}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 h-8 px-2"
+                        >
+                          <Send className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Pause/Resume Controls */}
+            {phase === 'active' && (
+              <Card className="bg-slate-800/50 border-slate-600/50 p-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-3 h-3 text-blue-400" />
+                  <p className="text-blue-400 font-semibold text-xs">Auction Controls</p>
                 </div>
-                <p className="text-white font-bold text-sm truncate mb-2">{localTeam.name}</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-gray-400 text-[9px]">Players</p>
-                    <p className="text-white font-bold">{localTeam.players.length}/{localTeam.maxPlayers}</p>
+                {!isPaused ? (
+                  <Button
+                    onClick={handlePauseAuction}
+                    size="sm"
+                    className="w-full bg-yellow-600 hover:bg-yellow-700 text-white text-xs py-2"
+                  >
+                    <Pause className="w-3 h-3 mr-1" />
+                    Pause Auction
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="bg-yellow-500/20 border border-yellow-500/50 rounded p-2 text-center">
+                      <p className="text-yellow-400 text-xs font-bold animate-pulse">⏸️ PAUSED</p>
+                      {pausedBy && <p className="text-yellow-300 text-[10px]">by {pausedBy.userName}</p>}
+                    </div>
+                    <Button
+                      onClick={handleResumeAuction}
+                      size="sm"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white text-xs py-2"
+                    >
+                      <Play className="w-3 h-3 mr-1" />
+                      Resume Auction
+                    </Button>
                   </div>
-                  <div>
-                    <p className="text-gray-400 text-[9px]">Budget</p>
-                    <p className="text-green-400 font-bold">₹{localTeam.budget}Cr</p>
-                  </div>
-                </div>
+                )}
               </Card>
             )}
 
-            {/* Hint */}
-            <div className="bg-slate-800/30 border border-slate-700/30 rounded-lg p-2">
-              <p className="text-gray-400 text-[9px] text-center">
-                Tap "View All Teams" button for complete squad details
-              </p>
-            </div>
+            {/* Host Controls - Add Player */}
+            {isHost && phase === 'active' && (
+              <Card className="bg-amber-900/20 border-amber-500/50 p-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Settings className="w-3 h-3 text-amber-400" />
+                  <p className="text-amber-400 font-semibold text-xs">Host Controls</p>
+                </div>
+                <Button
+                  onClick={() => setShowAddPlayerModal(true)}
+                  size="sm"
+                  className="w-full bg-green-600 hover:bg-green-700 text-xs py-2"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add Player
+                </Button>
+              </Card>
+            )}
+
+            {/* End Auction Button */}
+            <Button
+              onClick={() => setShowEndAuctionModal(true)}
+              variant="outline"
+              size="sm"
+              className="w-full border-red-500/50 text-red-400 text-xs"
+            >
+              🛑 End Auction
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Sold Animation */}
+      <AnimatePresence>
+        {showSoldAnimation && soldPlayerInfo && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-2xl border-4 border-green-400 shadow-2xl px-12 py-8 text-center">
+              <Gavel className="w-16 h-16 text-white mx-auto mb-4" />
+              <h2 className="text-4xl font-black text-white mb-2">SOLD!</h2>
+              <p className="text-2xl text-white font-bold">{soldPlayerInfo.name}</p>
+              <p className="text-xl text-green-200 mt-2">to {soldPlayerInfo.team}</p>
+              <p className="text-3xl font-black text-white mt-4">₹{soldPlayerInfo.price} Cr</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Player Modal */}
+      <AnimatePresence>
+        {showAddPlayerModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAddPlayerModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 rounded-2xl border-2 border-green-500/50 shadow-2xl max-w-md w-full"
+            >
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6">
+                <h2 className="text-2xl font-black text-white flex items-center gap-2">
+                  <Plus className="w-6 h-6" />
+                  Add Custom Player
+                </h2>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Player Name *</label>
+                  <Input
+                    value={newPlayerName}
+                    onChange={(e) => setNewPlayerName(e.target.value)}
+                    placeholder="Enter player name"
+                    className="bg-slate-900/50 border-slate-600 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Role</label>
+                  <select
+                    value={newPlayerRole}
+                    onChange={(e) => setNewPlayerRole(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-slate-600 text-white rounded-md px-3 py-2"
+                  >
+                    <option value="Batsman">Batsman</option>
+                    <option value="Bowler">Bowler</option>
+                    <option value="All-rounder">All-rounder</option>
+                    <option value="Wicket-keeper">Wicket-keeper</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Base Price (Cr)</label>
+                  <Input
+                    type="number"
+                    value={newPlayerBasePrice}
+                    onChange={(e) => setNewPlayerBasePrice(Number(e.target.value))}
+                    min={0.5}
+                    max={20}
+                    step={0.5}
+                    className="bg-slate-900/50 border-slate-600 text-white"
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    onClick={() => setShowAddPlayerModal(false)}
+                    variant="outline"
+                    className="flex-1 border-slate-600 text-gray-300 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAddPlayer}
+                    disabled={!newPlayerName.trim()}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Player
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Team Squad Modal */}
       <AnimatePresence>

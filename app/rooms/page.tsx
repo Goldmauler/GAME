@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Trophy } from "lucide-react"
+import { ArrowLeft, Trophy, Users } from "lucide-react"
 import AuctionRoomApp from "@/components/auction-room-app"
+import Link from "next/link"
 
 export default function RoomPage() {
   const router = useRouter()
@@ -21,22 +22,36 @@ export default function RoomPage() {
       
       {/* Header */}
       <div className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-sm border-b border-slate-800 py-3">
-        <div className="max-w-[1600px] mx-auto px-4 flex items-center gap-3">
-          <Button
-            onClick={() => router.push('/')}
-            variant="outline"
-            size="sm"
-            className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Home
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-              <Trophy className="h-5 w-5 text-orange-500" />
+        <div className="max-w-[1600px] mx-auto px-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => router.push('/')}
+              variant="outline"
+              size="sm"
+              className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Home
+            </Button>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                <Trophy className="h-5 w-5 text-orange-500" />
+              </div>
+              <h1 className="font-bold text-lg text-orange-500">Multiplayer Rooms</h1>
             </div>
-            <h1 className="font-bold text-lg text-orange-500">Multiplayer Rooms</h1>
           </div>
+          
+          {/* View Players Button */}
+          <Link href="/players">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+            >
+              <Users className="w-4 h-4 mr-1" />
+              View Players
+            </Button>
+          </Link>
         </div>
       </div>
 
