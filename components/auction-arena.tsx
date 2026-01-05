@@ -143,23 +143,31 @@ const TEAMS: Team[] = [
   },
 ]
 
+const BASE_PRICE_TIERS = [2, 1.5, 1, 0.75, 0.5, 0.4, 0.3, 0.2] as const
+
 const PLAYERS: Player[] = [
-  ...Array.from({ length: 100 }, (_, i) => ({
-    id: `player-${i}`,
-    name:
-      [
-        "Virat Kohli",
-        "Rohit Sharma",
-        "MS Dhoni",
-        "Rishabh Pant",
-        "Suryakumar Yadav",
-        "Jasprit Bumrah",
-        "Yuzvendra Chahal",
-        "Hardik Pandya",
-      ][i % 8] || `Player ${i}`,
-    role: ["Batsman", "Bowler", "All-rounder", "Wicket-keeper"][i % 4] as any,
-    basePrice: 20 + Math.floor(Math.random() * 80),
-  })),
+  ...Array.from({ length: 100 }, (_, i) => {
+    const name = [
+      "Virat Kohli",
+      "Rohit Sharma",
+      "MS Dhoni",
+      "Rishabh Pant",
+      "Suryakumar Yadav",
+      "Jasprit Bumrah",
+      "Yuzvendra Chahal",
+      "Hardik Pandya",
+    ][i % 8] || `Player ${i}`
+
+    // Pick a realistic base price from the official tier list
+    const basePrice = BASE_PRICE_TIERS[i % BASE_PRICE_TIERS.length]
+
+    return {
+      id: `player-${i}`,
+      name,
+      role: ["Batsman", "Bowler", "All-rounder", "Wicket-keeper"][i % 4] as any,
+      basePrice,
+    }
+  }),
 ]
 
 export default function AuctionArena({ onComplete }: { onComplete: () => void }) {
