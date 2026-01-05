@@ -240,23 +240,28 @@ export default function RoomPage() {
       ws.onerror = (error) => {
         console.error('WebSocket error:', error)
         console.error('   Tried to connect to:', wsUrl)
+        console.error('   Make sure WebSocket server is running: npm run start-room-server')
         toast({
           title: 'Connection Error',
-          description: `Failed to connect to auction server. Check console for details.`,
+          description: `Failed to connect to auction server. Ensure WebSocket server is running on port 8080.`,
           variant: 'destructive',
         })
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         console.log('Disconnected from auction server')
+        console.log('   Close code:', event.code, 'Reason:', event.reason || 'No reason provided')
         setConnected(false)
 
-        // Attempt reconnection
+        // Attempt reconnection with exponential backoff
         if (!reconnecting) {
           setReconnecting(true)
+          const reconnectDelay = Math.min(3000 * Math.pow(2, Math.floor(Math.random() * 3)), 10000)
+          console.log('   Will attempt to reconnect in', reconnectDelay / 1000, 'seconds')
           setTimeout(() => {
+            setReconnecting(false)
             connectToRoom()
-          }, 3000)
+          }, reconnectDelay)
         }
       }
     } catch (error) {

@@ -724,20 +724,23 @@ export default function AuctionArena({ onComplete }: { onComplete: () => void })
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                {results.ratings?.map((r: any) => {
+                {results.ratings?.map((r: { teamId: string; overallScore: number; battingScore: number; bowlingScore: number; strengths?: string[] }) => {
                   const team = teams.find((t: Team) => t.id === r.teamId)
+                  if (!team) return null
                   return (
                     <div key={r.teamId} className="bg-indigo-800/40 p-4 rounded">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-bold">{team?.name || r.teamId}</div>
+                          <div className="font-bold">{team.name}</div>
                           <div className="text-sm text-indigo-200">Overall: {r.overallScore}</div>
                         </div>
                         <div className="text-sm text-indigo-100">Bat: {r.battingScore} • Bowl: {r.bowlingScore}</div>
                       </div>
-                      <div className="mt-2 text-sm text-indigo-200">
-                        Strengths: {r.strengths?.join(", ")}
-                      </div>
+                      {r.strengths && r.strengths.length > 0 && (
+                        <div className="mt-2 text-sm text-indigo-200">
+                          Strengths: {r.strengths.join(", ")}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

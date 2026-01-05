@@ -140,7 +140,7 @@ export function generateTeamBiddingProfile(team: Team, allPlayers: Player[]): Te
     "Wicket-keeper": 0,
   }
 
-  team.players.forEach((p: any) => {
+  team.players.forEach((p: Player) => {
     roleCount[p.role as keyof typeof roleCount]++
   })
 

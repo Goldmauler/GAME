@@ -9,6 +9,7 @@ import PointsTable from "@/components/points-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Users, Zap, Trophy, Play, RotateCcw, LogIn, X } from "lucide-react"
+import { safeSessionStorage, safeLocalStorage } from "@/lib/storage-utils"
 
 type GamePhase = "lobby" | "auction" | "results" | "rankings"
 
@@ -18,19 +19,21 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true)
-    const savedPhase = sessionStorage.getItem('gamePhase')
-    if (savedPhase && ['lobby', 'auction', 'results', 'rankings'].includes(savedPhase)) {
+    const savedPhase = safeSessionStorage.getItem<string>('gamePhase')
+    // Validate the saved phase is a valid GamePhase value
+    const validPhases: GamePhase[] = ['lobby', 'auction', 'results', 'rankings']
+    if (savedPhase && validPhases.includes(savedPhase as GamePhase)) {
       setGamePhase(savedPhase as GamePhase)
     }
   }, [])
 
   useEffect(() => {
-    sessionStorage.setItem('gamePhase', gamePhase)
+    safeSessionStorage.setItem('gamePhase', gamePhase)
   }, [gamePhase])
 
   const resetGame = () => {
-    sessionStorage.removeItem('gamePhase')
-    sessionStorage.removeItem('auctionState')
+    safeSessionStorage.removeItem('gamePhase')
+    safeSessionStorage.removeItem('auctionState')
     setGamePhase('lobby')
   }
 
@@ -72,32 +75,27 @@ function LobbyScreen({ onStart, onNewGame }: { onStart: () => void; onNewGame: (
   const [roomInfo, setRoomInfo] = useState<{ roomCode: string; userName: string; timestamp: number } | null>(null)
 
   useEffect(() => {
-    const savedState = sessionStorage.getItem('auctionState')
+    const savedState = safeSessionStorage.getItem<unknown>('auctionState')
     setHasSavedGame(!!savedState)
 
-    const storedConnection = localStorage.getItem('auctionConnection')
-    if (storedConnection) {
-      try {
-        const connectionInfo = JSON.parse(storedConnection)
-        const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
-        if (timeSinceDisconnect < 2 * 60 * 1000) {
-          setHasRoomConnection(true)
-          setRoomInfo(connectionInfo)
-        } else {
-          localStorage.removeItem('auctionConnection')
-        }
-      } catch (e) {
-        console.error('Error parsing connection info:', e)
+    const connectionInfo = safeLocalStorage.getItem<{ roomCode: string; userName: string; timestamp: number }>('auctionConnection')
+    if (connectionInfo && connectionInfo.roomCode && connectionInfo.timestamp) {
+      const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
+      if (timeSinceDisconnect < 2 * 60 * 1000) {
+        setHasRoomConnection(true)
+        setRoomInfo(connectionInfo)
+      } else {
+        safeLocalStorage.removeItem('auctionConnection')
       }
     }
   }, [])
 
   const handleRejoinRoom = () => {
-    if (roomInfo) router.push(`/room/${roomInfo.roomCode}`)
+    if (roomInfo?.roomCode) router.push(`/room/${roomInfo.roomCode}`)
   }
 
   const handleClearRoomConnection = () => {
-    localStorage.removeItem('auctionConnection')
+    safeLocalStorage.removeItem('auctionConnection')
     setHasRoomConnection(false)
     setRoomInfo(null)
   }

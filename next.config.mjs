@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
+    // NOTE: This is only for development. Remove this in production for better type safety.
     ignoreBuildErrors: true,
   },
   images: {
