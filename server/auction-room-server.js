@@ -1,6 +1,7 @@
 const WebSocket = require("ws")
 const http = require("http")
-const { calculateTeamRating } = require("./team-rating")
+//const { calculateTeamRating } = require("./team-rating")
+const { calculateCortexScore } = require("./cortex-scorer")
 const { createPlayers: fetchRealPlayers } = require("../lib/fetch-players")
 const fetch = require("node-fetch")
 const os = require("os")
@@ -27,7 +28,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 const server = http.createServer((req, res) => {
   // Health check endpoint for Render
   if (req.url === '/health' || req.url === '/') {
-    res.writeHead(200, { 
+    res.writeHead(200, {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*'
     })
@@ -44,7 +45,7 @@ const server = http.createServer((req, res) => {
   }
 })
 
-const wss = new WebSocket.Server({ 
+const wss = new WebSocket.Server({
   server: server // Attach to HTTP server instead of port directly
 })
 
@@ -52,7 +53,7 @@ const wss = new WebSocket.Server({
 function getLocalIPs() {
   const interfaces = os.networkInterfaces()
   const ips = []
-  
+
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       // Skip internal (loopback) and non-IPv4 addresses
@@ -61,7 +62,7 @@ function getLocalIPs() {
       }
     }
   }
-  
+
   return ips
 }
 
@@ -137,44 +138,89 @@ function createTeams() {
 // Use real IPL players from fetch-players.js and categorize them
 function createPlayers() {
   const allPlayers = fetchRealPlayers()
-  
-  // Categorize players by role
+
+  // Categorize players by Auction Sets (IPL Style)
+  // Sets: Marquee, Capped Batters, Capped All-rounders, Capped Wicket-keepers, Capped Fast Bowlers, Capped Spinners
+  //       Uncapped Batters, Uncapped All-rounders, ...
+
   const categorized = {
     marquee: [],
-    batsmen: [],
-    bowlers: [],
-    allrounders: [],
-    wicketkeepers: []
+
+    // Set 1: Capped Batters (BA1)
+    capped_batters: [],
+    // Set 2: Capped All-rounders (AL1)
+    capped_allrounders: [],
+    // Set 3: Capped Wicket-keepers (WK1)
+    capped_wicketkeepers: [],
+    // Set 4: Capped Fast Bowlers (FA1)
+    capped_fastbowlers: [],
+    // Set 5: Capped Spin Bowlers (SP1)
+    capped_spinbowlers: [],
+
+    // Uncapped Sets
+    uncapped_batters: [],
+    uncapped_allrounders: [],
+    uncapped_wicketkeepers: [],
+    uncapped_fastbowlers: [],
+    uncapped_spinbowlers: []
   }
-  
+
   allPlayers.forEach(player => {
     const role = player.role.toLowerCase()
-    
-    // Marquee players (high base price >= 2Cr)
-    if (player.basePrice >= 2) {
+    const isMarquee = player.basePrice >= 2 || player.isMarquee
+    const isUncapped = player.basePrice <= 0.4 || player.isUncapped // Assuming < 40L is uncapped behavior for game logic if flag missing
+
+    // Marquee list (Top tier only)
+    if (isMarquee && !player.isRetained) {
       categorized.marquee.push(player)
+      return
     }
-    // Categorize by role
-    else if (role.includes('batsman') || role.includes('batter')) {
-      categorized.batsmen.push(player)
-    } else if (role.includes('bowler')) {
-      categorized.bowlers.push(player)
-    } else if (role.includes('all-rounder') || role.includes('allrounder')) {
-      categorized.allrounders.push(player)
-    } else if (role.includes('wicket-keeper') || role.includes('wicketkeeper')) {
-      categorized.wicketkeepers.push(player)
+
+    // Determine Role Type
+    let type = 'batter'
+    if (role.includes('all')) type = 'allrounder'
+    else if (role.includes('keep') || role.includes('wk')) type = 'wicketkeeper'
+    else if (role.includes('bowl')) {
+      // Simple heuristic for Spin vs Fast if data missing: 
+      // If name implies spinner (Rashid, Chahal, etc) or has 'spin' in detailed role. 
+      // For now, randomly split or put all in fast/spin buckets if specific data absent.
+      // Defaulting all bowlers to 'Fast' bucket for now unless we add specific data.
+      // Or split randomly for variety? Let's treat all as 'Fast' for simplicity or 'Bowlers' general category.
+      // Wait, user asked for "batsmen bowlers". Let's stick to standard 5 roles.
+      type = 'bowler'
+    }
+
+    // Assign to Category
+    if (isUncapped) {
+      if (type === 'batter') categorized.uncapped_batters.push(player)
+      else if (type === 'allrounder') categorized.uncapped_allrounders.push(player)
+      else if (type === 'wicketkeeper') categorized.uncapped_wicketkeepers.push(player)
+      else categorized.uncapped_fastbowlers.push(player) // Using fastbowlers as generic Uncapped Bowlers
     } else {
-      // Default to batsmen if unclear
-      categorized.batsmen.push(player)
+      if (type === 'batter') categorized.capped_batters.push(player)
+      else if (type === 'allrounder') categorized.capped_allrounders.push(player)
+      else if (type === 'wicketkeeper') categorized.capped_wicketkeepers.push(player)
+      else categorized.capped_fastbowlers.push(player) // Using fastbowlers as generic Capped Bowlers
     }
   })
-  
+
   return categorized
 }
 
 // Database helper functions
 async function saveRoomToDatabase(room) {
   try {
+    // Flatten all players from categories for initial save
+    const allPlayers = [
+      ...room.playerCategories.marquee,
+      ...room.playerCategories.batsmen,
+      ...room.playerCategories.bowlers,
+      ...room.playerCategories.allrounders,
+      ...room.playerCategories.wicketkeepers
+    ];
+
+    console.log(`Saving room ${room.roomCode} with ${allPlayers.length} players`);
+
     const response = await fetch(`${API_BASE_URL}/api/rooms/create`, {
       method: 'POST',
       headers: {
@@ -187,7 +233,7 @@ async function saveRoomToDatabase(room) {
         minTeams: room.minTeams,
         status: 'lobby',
         teams: room.teams,
-        players: room.players,
+        players: allPlayers,
       }),
     })
 
@@ -218,11 +264,15 @@ class AuctionRoom {
     this.takenTeams = new Set() // Track which teams are taken
     this.minTeams = 2 // Minimum teams to start auction
     this.startCountdown = null // Countdown timer
-    
+
     // Reconnection support
     this.disconnectedUsers = new Map() // userId -> {userName, teamId, disconnectTime, timeout}
-    this.reconnectionGracePeriod = 2 * 60 * 1000 // 2 minutes in milliseconds
-    
+    this.reconnectionGracePeriod = 24 * 60 * 60 * 1000 // 24 hours (Allow joining back anytime)
+
+    // Voting state
+    this.votingActive = false
+    this.endAuctionVotes = new Set() // Set of userIds who voted to end
+
     // Enhanced auction state with realistic features
     this.auctionState = {
       playerIndex: 0,
@@ -232,62 +282,73 @@ class AuctionRoom {
       timeLeft: ROUND_1_BID_TIME,
       phase: "lobby", // lobby, countdown, active, break, strategic_timeout, completed
       countdownSeconds: 10,
-      
+
       // Round-based system
       currentRound: 1, // Round 1: Normal, Round 2: Accelerated for unsold
       maxRounds: 2,
       unsoldPlayers: [],
-      
+
       // Category system
-      currentCategory: 'marquee', // marquee, batsmen, bowlers, allrounders, wicketkeepers
-      categoryOrder: ['marquee', 'batsmen', 'allrounders', 'bowlers', 'wicketkeepers'],
+      currentCategory: 'marquee',
+      categoryOrder: [
+        'marquee',
+        'capped_batters',
+        'capped_allrounders',
+        'capped_wicketkeepers',
+        'capped_fastbowlers', // Using as general Capped Bowlers for now
+        'capped_spinbowlers',
+        'uncapped_batters',
+        'uncapped_allrounders',
+        'uncapped_wicketkeepers',
+        'uncapped_fastbowlers'
+      ],
       categoryIndex: 0,
-      
+
       // Break system
       breakType: null, // 'category', 'strategic', 'snack'
       breakTimeLeft: 0,
       breakMessage: '',
-      
+
       // Strategic timeouts (2 per team)
       strategicTimeouts: {}, // teamId -> remaining timeouts
-      
+
       // RTM (Right to Match) - 1 per team
       rtmAvailable: {}, // teamId -> has RTM
-      
+
       // Stats
       totalPlayersSold: 0,
       totalMoneySpent: 0,
-      
+
       // Pause state
       isPaused: false,
       pausedBy: null,
       pausedAt: null,
-      
+
       // Chat messages
       chatMessages: [], // Array of {userName, message, timestamp, type: 'chat'|'system'|'bid'}
-      
+
       // Sale History - Track all player sales
       saleHistory: [] // Array of {playerName, teamName, price, round, timestamp, status: 'sold'/'unsold'}
     }
-    
+
     // Initialize strategic timeouts and RTM for all teams
     this.teams.forEach(team => {
       this.auctionState.strategicTimeouts[team.id] = 2
       this.auctionState.rtmAvailable[team.id] = true
     })
-    
+
     this.tickInterval = null
     this.countdownInterval = null
     this.createdAt = Date.now()
-    
+
     // Build initial player list (Marquee players first)
     this.buildPlayerList()
   }
-  
+
   buildPlayerList() {
     // Build player list based on current round and category
     const category = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
-    
+
     if (this.auctionState.currentRound === 1) {
       // Round 1: All players from current category
       this.players = [...this.playerCategories[category]]
@@ -298,7 +359,7 @@ class AuctionRoom {
         basePrice: Math.max(0.5, p.basePrice * 0.5) // 50% reduced base price
       }))
     }
-    
+
     if (this.players.length > 0) {
       this.auctionState.currentPrice = this.players[0].basePrice
       this.auctionState.playerIndex = 0
@@ -308,12 +369,12 @@ class AuctionRoom {
   addClient(ws, teamId, userName, userId, isReconnecting = false) {
     const isHost = userId === this.hostId
     this.clients.set(ws, { teamId, userName, userId, isHost, ready: false })
-    
+
     // Only add to takenTeams if teamId is not null
     if (teamId) {
       this.takenTeams.add(teamId)
     }
-    
+
     // If reconnecting, remove from disconnected users and clear timeout
     if (isReconnecting && this.disconnectedUsers.has(userId)) {
       const disconnectedUser = this.disconnectedUsers.get(userId)
@@ -322,7 +383,7 @@ class AuctionRoom {
       }
       this.disconnectedUsers.delete(userId)
       console.log(`${userName} reconnected to room ${this.roomCode}`)
-      
+
       // Notify others about reconnection
       this.broadcastMessage({
         type: 'player_reconnected',
@@ -333,7 +394,7 @@ class AuctionRoom {
         }
       })
     }
-    
+
     // Check if minimum teams reached and host hasn't started yet
     if (this.auctionState.phase === 'lobby' && this.clients.size >= this.minTeams) {
       this.notifyReadyToStart()
@@ -344,11 +405,50 @@ class AuctionRoom {
     const client = this.clients.get(ws)
     if (!client) return
 
-    const { userId, userName, teamId } = client
-    
+    const { userId, userName, teamId, isHost } = client
+
     // Remove client from active connections
     this.clients.delete(ws)
-    
+
+    // HOST MIGRATION LOGIC
+    if (isHost && this.clients.size > 0) {
+      console.log(`Host ${userName} disconnected. Migrating host privileges...`)
+
+      // Pick new host (first available client)
+      const iterator = this.clients.values()
+      const newHostClient = iterator.next().value
+
+      if (newHostClient) {
+        this.hostId = newHostClient.userId
+        this.hostName = newHostClient.userName
+        newHostClient.isHost = true
+        // Client object is a reference in the Map, so this update persists
+
+        console.log(`New Host is: ${newHostClient.userName} (${newHostClient.userId})`)
+
+        this.broadcastMessage({
+          type: 'host-migration',
+          payload: {
+            oldHost: userName,
+            newHost: newHostClient.userName,
+            newHostId: newHostClient.userId,
+            message: `Host disconnected. ${newHostClient.userName} is now the Auction Leader.`
+          }
+        })
+
+        // Explicitly update the new host's client with a targeted message
+        // We need to find the WS for this client again since we only have the value from iterator
+        this.clients.forEach((c, cWs) => {
+          if (c.userId === newHostClient.userId && cWs.readyState === WebSocket.OPEN) {
+            cWs.send(JSON.stringify({
+              type: 'you-are-host',
+              payload: { isHost: true }
+            }))
+          }
+        })
+      }
+    }
+
     // Store disconnected user info for reconnection
     const timeout = setTimeout(() => {
       // After grace period, remove team reservation
@@ -358,7 +458,7 @@ class AuctionRoom {
         if (teamId) {
           this.takenTeams.delete(teamId)
         }
-        
+
         // Notify others
         this.broadcastMessage({
           type: 'player_removed',
@@ -370,16 +470,16 @@ class AuctionRoom {
         })
       }
     }, this.reconnectionGracePeriod)
-    
+
     this.disconnectedUsers.set(userId, {
       userName,
       teamId,
       disconnectTime: Date.now(),
       timeout
     })
-    
+
     console.log(`WARNING: ${userName} disconnected from room ${this.roomCode}. Grace period: 2 minutes`)
-    
+
     // Notify others about disconnection
     this.broadcastMessage({
       type: 'player_disconnected',
@@ -393,6 +493,14 @@ class AuctionRoom {
 
   canUserReconnect(userId) {
     return this.disconnectedUsers.has(userId)
+  }
+
+  isTeamTakenButDisconnected(teamId) {
+    // Check if team is taken but user is disconnected
+    for (const [uid, user] of this.disconnectedUsers.entries()) {
+      if (user.teamId === teamId) return uid
+    }
+    return null
   }
 
   getDisconnectedUserInfo(userId) {
@@ -416,7 +524,7 @@ class AuctionRoom {
         canStart: true
       }
     })
-    
+
     this.clients.forEach((client, ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(message)
@@ -427,32 +535,32 @@ class AuctionRoom {
   selectTeam(ws, teamId) {
     const client = this.clients.get(ws)
     if (!client) return false
-    
+
     // Check if team is already taken
     if (this.takenTeams.has(teamId) && client.teamId !== teamId) {
       return false
     }
-    
+
     // Remove old team selection
     if (client.teamId) {
       this.takenTeams.delete(client.teamId)
     }
-    
+
     // Set new team
     client.teamId = teamId
     this.takenTeams.add(teamId)
     this.clients.set(ws, client)
-    
+
     return true
   }
 
   setPlayerReady(ws, ready) {
     const client = this.clients.get(ws)
     if (!client) return false
-    
+
     client.ready = ready
     this.clients.set(ws, client)
-    
+
     return true
   }
 
@@ -479,7 +587,7 @@ class AuctionRoom {
       type: 'lobby-update',
       payload: { players }
     })
-    
+
     this.clients.forEach((_, ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(message)
@@ -490,25 +598,25 @@ class AuctionRoom {
   startCountdownTimer() {
     if (this.auctionState.phase !== 'lobby') return false
     if (this.clients.size < this.minTeams) return false
-    
+
     this.auctionState.phase = 'countdown'
     this.auctionState.countdownSeconds = 10
-    
+
     // Broadcast initial countdown immediately
     this.broadcastCountdown()
-    
+
     this.countdownInterval = setInterval(() => {
       this.auctionState.countdownSeconds -= 1
-      
+
       this.broadcastCountdown()
-      
+
       if (this.auctionState.countdownSeconds <= 0) {
         clearInterval(this.countdownInterval)
         this.countdownInterval = null
         this.startAuction()
       }
     }, 1000)
-    
+
     return true
   }
 
@@ -520,7 +628,7 @@ class AuctionRoom {
         message: `Auction starting in ${this.auctionState.countdownSeconds}...`
       }
     })
-    
+
     this.clients.forEach((_, ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(message)
@@ -533,7 +641,7 @@ class AuctionRoom {
       // Auto-assign teams to players who haven't selected one
       let availableTeamIds = this.teams.map(t => t.id).filter(id => !this.takenTeams.has(id))
       let teamIndex = 0
-      
+
       this.clients.forEach((client, ws) => {
         if (!client.teamId && availableTeamIds.length > 0) {
           const assignedTeamId = availableTeamIds[teamIndex % availableTeamIds.length]
@@ -544,10 +652,10 @@ class AuctionRoom {
           console.log(`Auto-assigned ${client.userName} to team ${assignedTeamId}`)
         }
       })
-      
+
       this.auctionState.phase = 'active'
       this.startTicking()
-      
+
       // Broadcast auction started
       const message = JSON.stringify({
         type: 'auction_started',
@@ -556,13 +664,13 @@ class AuctionRoom {
           currentPlayer: this.players[this.auctionState.playerIndex]
         }
       })
-      
+
       this.clients.forEach((_, ws) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(message)
         }
       })
-      
+
       // Broadcast initial state
       this.broadcastState()
     }
@@ -570,7 +678,7 @@ class AuctionRoom {
 
   startTicking() {
     if (this.tickInterval) return
-    
+
     this.tickInterval = setInterval(() => {
       if (this.auctionState.phase !== 'active' || this.auctionState.isPaused) {
         this.stopTicking()
@@ -584,11 +692,33 @@ class AuctionRoom {
 
       // Time expired
       if (this.auctionState.timeLeft <= 0) {
-        this.nextPlayer()
+        this.startSoldProcessing()
       }
 
       this.broadcastState()
     }, 1000)
+  }
+
+  startSoldProcessing() {
+    this.stopTicking()
+    this.auctionState.phase = 'sold_celebration'
+
+    // Broadcast immediately to show "Sold/Unsold" state
+    this.broadcastState()
+
+    // Wait for celebration animation (3 seconds)
+    setTimeout(() => {
+      this.resolvePlayerSale()
+    }, 4000)
+  }
+
+  resolvePlayerSale() {
+    this.auctionState.phase = 'active'
+    this.nextPlayer()
+    // Resume ticking for the next player (unless round is over, handled in nextPlayer -> handleCategoryComplete)
+    if (this.auctionState.phase === 'active') {
+      this.startTicking()
+    }
   }
 
   stopTicking() {
@@ -600,7 +730,7 @@ class AuctionRoom {
 
   aiTick() {
     const { generateTeamBiddingProfile, shouldTeamBid, calculateNextBid, getNextBidder } = require('./auction-logic')
-    
+
     if (this.auctionState.timeLeft < 25 && Math.random() < 0.3) {
       const eligibleTeams = this.teams.filter(t => {
         if (this.takenTeams.has(t.id)) return false // Skip human-controlled teams
@@ -609,7 +739,7 @@ class AuctionRoom {
 
       if (eligibleTeams.length > 0) {
         const profiles = eligibleTeams.map(t => generateTeamBiddingProfile(t, this.auctionState.currentPrice))
-        const interestedTeams = eligibleTeams.filter((t, i) => 
+        const interestedTeams = eligibleTeams.filter((t, i) =>
           shouldTeamBid(profiles[i], this.players[this.auctionState.playerIndex], this.auctionState.currentPrice)
         )
 
@@ -626,26 +756,61 @@ class AuctionRoom {
   }
 
   placeBid(teamId, amount) {
+    // Phase check
+    if (this.auctionState.phase !== 'active' && this.auctionState.phase !== 'countdown') return false
+
     const team = this.teams.find(t => t.id === teamId)
-    if (!team || team.budget < amount || team.players.length >= 25) return false
+    if (!team) return false
+
+    // 1. Basic Budget Check
+    if (team.budget < amount) return false
+
+    // 2. Max Squad Size Check
+    if (team.players.length >= 25) return false
+
+    // 3. Minimum Squad Size Budget Protection
+    // Teams must strictly maintain enough budget to reach a minimum of 18 players
+    // Minimum base price is 0.2 Cr
+    const minSquadSize = 18
+    const currentCount = team.players.length
+    // We are buying 1 player now, so we need to fill (minSquadSize - (currentCount + 1)) more slots
+    const slotsToFill = Math.max(0, minSquadSize - (currentCount + 1))
+    const minPricePerPlayer = 0.2 // 20 Lakhs
+    const fundsNeededForOthers = slotsToFill * minPricePerPlayer
+
+    if ((team.budget - amount) < fundsNeededForOthers) {
+      // Reject bid: Not enough funds left to complete squad
+      return false
+    }
 
     this.auctionState.currentPrice = amount
     this.auctionState.highestBidder = teamId
     this.auctionState.bidHistory.push({ team: teamId, price: amount, timestamp: Date.now() })
+
+    // Broadcast immediate bid event for faster UI response
+    this.broadcastMessage({
+      type: 'bid_placed',
+      payload: {
+        teamId: team.id,
+        teamName: team.name,
+        amount: amount,
+        message: `New bid: ₹${amount}Cr by ${team.name}`
+      }
+    })
     this.auctionState.timeLeft = Math.max(10, Math.min(20, this.auctionState.timeLeft + 5)) // Increased time extension
 
     return true
   }
-  
+
   markUnsold() {
     // Mark current player as unsold and move to next player
     const currentPlayer = this.players[this.auctionState.playerIndex]
-    
+
     // Add to unsold list if in round 1
     if (this.auctionState.currentRound === 1) {
       this.auctionState.unsoldPlayers.push(currentPlayer)
     }
-    
+
     // Add to sale history as manually marked unsold
     this.auctionState.saleHistory.push({
       playerName: currentPlayer.name,
@@ -659,11 +824,11 @@ class AuctionRoom {
       timestamp: new Date().toISOString(),
       status: 'unsold'
     })
-    
+
     // Reset bidding state
     this.auctionState.highestBidder = null
     this.auctionState.bidHistory = []
-    
+
     // Move to next player
     if (this.auctionState.playerIndex < this.players.length - 1) {
       this.auctionState.playerIndex += 1
@@ -673,34 +838,34 @@ class AuctionRoom {
       // Category complete
       this.handleCategoryComplete()
     }
-    
+
     // Broadcast updated state
     this.broadcastState()
-    
+
     return true
   }
 
   nextPlayer() {
     const currentPlayer = this.players[this.auctionState.playerIndex]
-    
+
     // Check if currentPlayer exists
     if (!currentPlayer) {
       console.error('ERROR: No current player found at index:', this.auctionState.playerIndex)
       this.endAuction()
       return
     }
-    
+
     // Award player to highest bidder
     if (this.auctionState.highestBidder) {
       const team = this.teams.find(t => t.id === this.auctionState.highestBidder)
       if (team) {
         team.players.push({ ...currentPlayer, soldPrice: this.auctionState.currentPrice, soldTo: team.id })
         team.budget -= this.auctionState.currentPrice
-        
+
         // Update stats
         this.auctionState.totalPlayersSold += 1
         this.auctionState.totalMoneySpent += this.auctionState.currentPrice
-        
+
         // Add to sale history
         this.auctionState.saleHistory.push({
           playerName: currentPlayer.name,
@@ -714,7 +879,7 @@ class AuctionRoom {
           timestamp: new Date().toISOString(),
           status: 'sold'
         })
-        
+
         // Broadcast player sold event
         const soldMessage = JSON.stringify({
           type: 'player-sold',
@@ -725,13 +890,13 @@ class AuctionRoom {
             soldPrice: this.auctionState.currentPrice,
           }
         })
-        
+
         this.clients.forEach((_, ws) => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(soldMessage)
           }
         })
-        
+
         // Save player purchase to database (only for human-controlled teams)
         if (this.takenTeams.has(team.id)) {
           this.savePlayerPurchase(team, currentPlayer, this.auctionState.currentPrice).catch(err => {
@@ -744,7 +909,7 @@ class AuctionRoom {
       if (this.auctionState.currentRound === 1) {
         this.auctionState.unsoldPlayers.push(currentPlayer)
       }
-      
+
       // Add to sale history as unsold
       this.auctionState.saleHistory.push({
         playerName: currentPlayer.name,
@@ -772,11 +937,11 @@ class AuctionRoom {
       this.handleCategoryComplete()
     }
   }
-  
+
   handleCategoryComplete() {
     const categoryName = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
     const nextCategoryIndex = this.auctionState.categoryIndex + 1
-    
+
     // Check if more categories in current round
     if (nextCategoryIndex < this.auctionState.categoryOrder.length) {
       // Start category break
@@ -792,42 +957,42 @@ class AuctionRoom {
       }
     }
   }
-  
+
   startCategoryBreak(completedCategory, nextCategory) {
     this.auctionState.phase = 'break'
     this.auctionState.breakType = 'category'
     this.auctionState.breakTimeLeft = CATEGORY_BREAK_TIME
     this.auctionState.breakMessage = `${this.getCategoryDisplayName(completedCategory)} auction complete! Next up: ${this.getCategoryDisplayName(nextCategory)}`
-    
+
     this.stopTicking()
     this.broadcastState()
-    
+
     // Start break countdown
     const breakInterval = setInterval(() => {
       this.auctionState.breakTimeLeft -= 1
       this.broadcastState()
-      
+
       if (this.auctionState.breakTimeLeft <= 0) {
         clearInterval(breakInterval)
         this.endBreak()
       }
     }, 1000)
   }
-  
+
   startSnackBreak() {
     this.auctionState.phase = 'break'
     this.auctionState.breakType = 'snack'
     this.auctionState.breakTimeLeft = ROUND_BREAK_TIME
     this.auctionState.breakMessage = `Round 1 Complete! Strategic Break - Get ready for Accelerated Auction Round 2!`
-    
+
     this.stopTicking()
     this.broadcastState()
-    
+
     // Start break countdown
     const breakInterval = setInterval(() => {
       this.auctionState.breakTimeLeft -= 1
       this.broadcastState()
-      
+
       if (this.auctionState.breakTimeLeft <= 0) {
         clearInterval(breakInterval)
         // Move to round 2
@@ -838,20 +1003,20 @@ class AuctionRoom {
       }
     }, 1000)
   }
-  
+
   endBreak() {
     // Move to next category
     this.auctionState.categoryIndex += 1
     if (this.auctionState.categoryIndex >= this.auctionState.categoryOrder.length) {
       this.auctionState.categoryIndex = 0
     }
-    
+
     this.buildPlayerList()
     this.auctionState.phase = 'active'
     this.auctionState.breakType = null
     this.auctionState.breakTimeLeft = 0
     this.auctionState.breakMessage = ''
-    
+
     // Broadcast category change
     const categoryMessage = JSON.stringify({
       type: 'category-change',
@@ -862,54 +1027,60 @@ class AuctionRoom {
         message: `Now auctioning: ${this.getCategoryDisplayName(this.auctionState.currentCategory)}`
       }
     })
-    
+
     this.clients.forEach((_, ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(categoryMessage)
       }
     })
-    
+
     this.startTicking()
     this.broadcastState()
   }
-  
+
   getCategoryDisplayName(category) {
     const names = {
-      'marquee': 'Marquee Players',
-      'batsmen': 'Batsmen',
-      'bowlers': 'Bowlers',
-      'allrounders': 'All-Rounders',
-      'wicketkeepers': 'Wicket-Keepers'
+      'marquee': 'Set M: Marquee Players',
+      'capped_batters': 'Set BA1: Capped Batters',
+      'capped_allrounders': 'Set AL1: Capped All-rounders',
+      'capped_wicketkeepers': 'Set WK1: Capped Wicket-keepers',
+      'capped_fastbowlers': 'Set FA1: Capped Payers - Bowlers',
+      'capped_spinbowlers': 'Set SP1: Capped Payers - Spinners',
+      'uncapped_batters': 'Set UBA1: Uncapped Batters',
+      'uncapped_allrounders': 'Set UAL1: Uncapped All-rounders',
+      'uncapped_wicketkeepers': 'Set UWK1: Uncapped Wicket-keepers',
+      'uncapped_fastbowlers': 'Set UFA1: Uncapped Bowlers',
+      'uncapped_spinbowlers': 'Set USP1: Uncapped Spinners'
     }
     return names[category] || category
   }
-  
+
   // Strategic timeout
   requestStrategicTimeout(teamId) {
     if (this.auctionState.phase !== 'active') return false
     if (this.auctionState.strategicTimeouts[teamId] <= 0) return false
-    
+
     this.auctionState.strategicTimeouts[teamId] -= 1
     this.startStrategicTimeout(teamId)
     return true
   }
-  
+
   startStrategicTimeout(teamId) {
     const team = this.teams.find(t => t.id === teamId)
-    
+
     this.auctionState.phase = 'strategic_timeout'
     this.auctionState.breakType = 'strategic'
     this.auctionState.breakTimeLeft = 90 // 90 seconds strategic timeout
     this.auctionState.breakMessage = `Strategic Timeout called by ${team ? team.name : 'Team'}`
-    
+
     this.stopTicking()
     this.broadcastState()
-    
+
     // Start timeout countdown
     const timeoutInterval = setInterval(() => {
       this.auctionState.breakTimeLeft -= 1
       this.broadcastState()
-      
+
       if (this.auctionState.breakTimeLeft <= 0) {
         clearInterval(timeoutInterval)
         this.auctionState.phase = 'active'
@@ -925,15 +1096,15 @@ class AuctionRoom {
   // Pause auction
   pauseAuction(teamId, userName) {
     if (this.auctionState.phase !== 'active' || this.auctionState.isPaused) return false
-    
+
     this.auctionState.isPaused = true
     this.auctionState.pausedBy = { teamId, userName }
     this.auctionState.pausedAt = Date.now()
     this.stopTicking()
-    
+
     // Add system message
     this.addChatMessage(null, `⏸️ Auction paused by ${userName}`, 'system')
-    
+
     // Broadcast pause event
     this.broadcastMessage({
       type: 'auction-paused',
@@ -942,23 +1113,23 @@ class AuctionRoom {
         message: `Auction paused by ${userName}`
       }
     })
-    
+
     this.broadcastState()
     return true
   }
-  
+
   // Resume auction
   resumeAuction(teamId, userName) {
     if (this.auctionState.phase !== 'active' || !this.auctionState.isPaused) return false
-    
+
     this.auctionState.isPaused = false
     this.auctionState.pausedBy = null
     this.auctionState.pausedAt = null
     this.startTicking()
-    
+
     // Add system message
     this.addChatMessage(null, `▶️ Auction resumed by ${userName}`, 'system')
-    
+
     // Broadcast resume event
     this.broadcastMessage({
       type: 'auction-resumed',
@@ -967,11 +1138,11 @@ class AuctionRoom {
         message: `Auction resumed by ${userName}`
       }
     })
-    
+
     this.broadcastState()
     return true
   }
-  
+
   // Add chat message
   addChatMessage(userName, message, type = 'chat') {
     const chatMessage = {
@@ -981,22 +1152,22 @@ class AuctionRoom {
       timestamp: Date.now(),
       type
     }
-    
+
     // Keep only last 100 messages
     this.auctionState.chatMessages.push(chatMessage)
     if (this.auctionState.chatMessages.length > 100) {
       this.auctionState.chatMessages = this.auctionState.chatMessages.slice(-100)
     }
-    
+
     // Broadcast new message
     this.broadcastMessage({
       type: 'chat-message',
       payload: chatMessage
     })
-    
+
     return chatMessage
   }
-  
+
   // Add custom player
   addCustomPlayer(player) {
     // Add to current player list
@@ -1009,33 +1180,36 @@ class AuctionRoom {
       stats: player.stats || { matches: 0, runs: 0, wickets: 0 },
       isCustom: true
     }
-    
+
     // Add to the appropriate category
     const category = this.getCategoryFromRole(newPlayer.role)
     if (this.playerCategories[category]) {
       this.playerCategories[category].push(newPlayer)
     }
-    
+
     // If current category matches, add to current players list
     const currentCategory = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
     if (currentCategory === category) {
       this.players.push(newPlayer)
     }
-    
+
     // Add system message
     this.addChatMessage(null, `✨ New player added: ${newPlayer.name} (${newPlayer.role}) - Base: ₹${newPlayer.basePrice}Cr`, 'system')
-    
+
     this.broadcastState()
     return newPlayer
   }
-  
+
   getCategoryFromRole(role) {
     const roleLower = role.toLowerCase()
-    if (roleLower.includes('bat')) return 'batsmen'
-    if (roleLower.includes('bowl')) return 'bowlers'
-    if (roleLower.includes('all')) return 'allrounders'
-    if (roleLower.includes('keep') || roleLower.includes('wicket')) return 'wicketkeepers'
-    return 'batsmen'
+
+    // Default to Capped sets for custom players
+    if (roleLower.includes('bat')) return 'capped_batters'
+    if (roleLower.includes('bowl')) return 'capped_fastbowlers'
+    if (roleLower.includes('all')) return 'capped_allrounders'
+    if (roleLower.includes('keep') || roleLower.includes('wicket')) return 'capped_wicketkeepers'
+
+    return 'capped_batters'
   }
 
   completeAuction() {
@@ -1058,7 +1232,7 @@ class AuctionRoom {
         finalTeams: this.teams
       }
     })
-    
+
     this.clients.forEach((_, ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(completeMessage)
@@ -1066,7 +1240,7 @@ class AuctionRoom {
     })
 
     this.broadcastResults(ratings)
-    
+
     // Save results to database
     this.saveAuctionResults(ratings).catch(err => {
       console.error(`Failed to save results for room ${this.roomCode}:`, err.message)
@@ -1076,7 +1250,7 @@ class AuctionRoom {
   broadcastState() {
     const currentPlayer = this.players[this.auctionState.playerIndex]
     const currentCategory = this.auctionState.categoryOrder[this.auctionState.categoryIndex]
-    
+
     // Build bid history with team names
     const enrichedBidHistory = this.auctionState.bidHistory.map(bid => {
       const team = this.teams.find(t => t.id === bid.team)
@@ -1087,7 +1261,7 @@ class AuctionRoom {
         timestamp: bid.timestamp
       }
     })
-    
+
     const message = JSON.stringify({
       type: 'auction-state',
       payload: {
@@ -1101,7 +1275,7 @@ class AuctionRoom {
         totalPlayers: this.players.length,
         phase: this.auctionState.phase,
         roomCode: this.roomCode,
-        
+
         // Enhanced auction info
         currentRound: this.auctionState.currentRound,
         maxRounds: this.auctionState.maxRounds,
@@ -1119,6 +1293,11 @@ class AuctionRoom {
         isPaused: this.auctionState.isPaused,
         pausedBy: this.auctionState.pausedBy,
         chatMessages: this.auctionState.chatMessages.slice(-50), // Send last 50 messages
+
+        // Voting info
+        votingActive: this.votingActive,
+        votesCount: this.endAuctionVotes.size,
+        totalVoters: this.clients.size,
       },
     })
 
@@ -1146,7 +1325,7 @@ class AuctionRoom {
     try {
       // Prepare teams data with only human-controlled teams
       const teamsData = []
-      
+
       this.clients.forEach((client, ws) => {
         const team = this.teams.find(t => t.id === client.teamId)
         if (team) {
@@ -1241,7 +1420,7 @@ class AuctionRoom {
         isHost: client.isHost
       })
     })
-    
+
     return {
       roomCode: this.roomCode,
       hostName: this.hostName,
@@ -1285,7 +1464,7 @@ wss.on("connection", (ws) => {
 
   ws.on("close", () => {
     console.log("Client disconnected")
-    
+
     const roomCode = clientRooms.get(ws)
     if (roomCode) {
       const room = rooms.get(roomCode)
@@ -1293,12 +1472,12 @@ wss.on("connection", (ws) => {
         // Handle disconnection with grace period
         room.handleDisconnect(ws)
         room.broadcastState()
-        
+
         // Don't delete room immediately, wait for potential reconnection
         // Room will only be deleted if it's truly empty (no active or disconnected users)
         const hasActiveClients = room.clients.size > 0
         const hasDisconnectedUsers = room.disconnectedUsers.size > 0
-        
+
         if (!hasActiveClients && !hasDisconnectedUsers) {
           rooms.delete(roomCode)
           console.log(`Room ${roomCode} deleted (empty)`)
@@ -1317,61 +1496,69 @@ function handleMessage(ws, msg) {
     case 'create-room':
       handleCreateRoom(ws, payload)
       break
-    
+
     case 'join-room':
       handleJoinRoom(ws, payload)
       break
-    
+
     case 'select-team':
       handleSelectTeam(ws, payload)
       break
-    
+
     case 'player-ready':
       handlePlayerReady(ws, payload)
       break
-    
+
     case 'start-auction':
       handleStartAuction(ws)
       break
-    
+
     case 'bid':
       handleBid(ws, payload)
       break
-    
+
     case 'strategic-timeout':
       handleStrategicTimeout(ws, payload)
       break
-    
+
     case 'mark-unsold':
       handleMarkUnsold(ws, payload)
       break
-    
+
     case 'pause-auction':
       handlePauseAuction(ws, payload)
       break
-    
+
     case 'resume-auction':
       handleResumeAuction(ws, payload)
       break
-    
+
     case 'chat-message':
       handleChatMessage(ws, payload)
       break
-    
+
     case 'add-player':
       handleAddPlayer(ws, payload)
       break
-    
+
     case 'list-rooms':
       handleListRooms(ws)
       break
-    
+
     case 'leave-room':
       handleLeaveRoom(ws)
       break
 
     case 'get-room-state':
       handleGetRoomState(ws, payload)
+      break
+
+    case 'propose-end-auction':
+      handleProposeEndAuction(ws)
+      break
+
+    case 'vote-end-auction':
+      handleVoteEndAuction(ws, payload)
       break
 
     default:
@@ -1384,7 +1571,7 @@ function handleCreateRoom(ws, payload) {
   const roomCode = generateRoomCode()
   const hostId = userId || `host-${Date.now()}`
   const room = new AuctionRoom(roomCode, hostName || 'Host', hostId)
-  
+
   rooms.set(roomCode, room)
   clientRooms.set(ws, roomCode)
 
@@ -1429,13 +1616,13 @@ function handleJoinRoom(ws, payload) {
   // Check if this is a reconnection attempt
   if (isReconnecting && userId && room.canUserReconnect(userId)) {
     const disconnectedUser = room.getDisconnectedUserInfo(userId)
-    
+
     // Restore user's previous state
     room.addClient(ws, disconnectedUser.teamId, userName, userId, true)
     clientRooms.set(ws, roomCode)
-    
+
     console.log(`${userName} reconnecting to room ${roomCode}`)
-    
+
     // Send full room state for sync
     ws.send(JSON.stringify({
       type: 'reconnected',
@@ -1452,7 +1639,7 @@ function handleJoinRoom(ws, payload) {
         message: 'Successfully reconnected! Syncing game state...'
       },
     }))
-    
+
     // Broadcast updated state to all clients
     room.broadcastState()
     room.broadcastLobbyUpdate()
@@ -1463,7 +1650,7 @@ function handleJoinRoom(ws, payload) {
   const existingClient = room.clients.get(ws)
   if (existingClient) {
     console.log(`${userName} already in room ${roomCode}, sending room-joined confirmation`)
-    
+
     // Just send confirmation, don't add again
     ws.send(JSON.stringify({
       type: 'room-joined',
@@ -1476,7 +1663,7 @@ function handleJoinRoom(ws, payload) {
         takenTeams: Array.from(room.takenTeams),
       },
     }))
-    
+
     // Send current lobby state
     room.broadcastLobbyUpdate()
     return
@@ -1490,12 +1677,31 @@ function handleJoinRoom(ws, payload) {
     return
   }
 
-  if (room.auctionState.phase !== 'lobby' && !isReconnecting) {
-    ws.send(JSON.stringify({
-      type: 'error',
-      payload: { message: 'Auction already in progress. Please rejoin if you were disconnected.' },
-    }))
-    return
+  // Check if this is a reconnection attempt OR a reclaim attempt
+  let isTeamUnclaimed = false;
+  if (isReconnecting && userId && !room.canUserReconnect(userId)) {
+    // User isn't in disconnected list (maybe server restarted), check if their team is free
+    // Actually, if server restarted, room.takenTeams is empty/fresh. 
+    // But if user lost connection and reconnection period expired, team might be released.
+    // If team is still marked 'taken' but no client has it, it's weird state.
+    // Simpler: Allow joining if phase is not lobby?
+  }
+
+  // ALLOW LATE JOINING (Spectator or Reclaim)
+  /* 
+     If the room is active, we should allow users to join.
+     If they have a valid teamID that is 'taken' but no active socket, give it back.
+     Otherwise, join as spectator.
+  */
+
+  if (room.auctionState.phase !== 'lobby') {
+    // Check if trying to reclaim a team
+    const teamIdToReclaim = room.isTeamTakenButDisconnected(payload.teamId || userId) // Hypothetical
+
+    // For now, simply allow joining. The client handles 'spectator' vs 'team' logic.
+    // If they send a userId that matches a disconnected user, they get their seat back (handled above).
+    // If they are new, they join as spectator.
+    console.log(`User ${userName} joining active room ${roomCode} (Late Join / Spectator)`)
   }
 
   const playerId = userId || `player-${Date.now()}`
@@ -1529,7 +1735,7 @@ function handleJoinRoom(ws, payload) {
       takenTeams: Array.from(room.takenTeams),
     },
   })
-  
+
   room.clients.forEach((_, clientWs) => {
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(updateMessage)
@@ -1551,17 +1757,17 @@ function handleSelectTeam(ws, payload) {
   }
 
   const { teamId } = payload
-  
+
   console.log(`Team selection attempt: teamId=${teamId}`)
 
   const success = room.selectTeam(ws, teamId)
-  
+
   if (success) {
     const client = room.clients.get(ws)
     const team = room.teams.find(t => t.id === teamId)
-    
+
     console.log(`${client.userName} selected team: ${team.name}`)
-    
+
     ws.send(JSON.stringify({
       type: 'team-selected',
       payload: {
@@ -1570,10 +1776,10 @@ function handleSelectTeam(ws, payload) {
         success: true
       }
     }))
-    
+
     // Broadcast lobby update to all clients
     room.broadcastLobbyUpdate()
-    
+
     // Broadcast room update to all clients
     const updateMessage = JSON.stringify({
       type: 'room-update',
@@ -1583,13 +1789,13 @@ function handleSelectTeam(ws, payload) {
         takenTeams: Array.from(room.takenTeams),
       },
     })
-    
+
     room.clients.forEach((_, clientWs) => {
       if (clientWs.readyState === WebSocket.OPEN) {
         clientWs.send(updateMessage)
       }
     })
-    
+
     // Check if ready to start after team selection
     if (room.auctionState.phase === 'lobby' && room.clients.size >= room.minTeams) {
       room.notifyReadyToStart()
@@ -1598,7 +1804,7 @@ function handleSelectTeam(ws, payload) {
     console.log(`ERROR: Team ${teamId} is already taken or unavailable`)
     ws.send(JSON.stringify({
       type: 'team-taken-error',
-      payload: { 
+      payload: {
         message: 'This team is already taken! Please select another team.',
         teamId
       }
@@ -1621,11 +1827,11 @@ function handlePlayerReady(ws, payload) {
 
   const { ready } = payload
   const success = room.setPlayerReady(ws, ready)
-  
+
   if (success) {
     const client = room.clients.get(ws)
     console.log(`${client.userName} is ${ready ? 'ready' : 'not ready'}`)
-    
+
     // Broadcast lobby update to all clients
     room.broadcastLobbyUpdate()
   } else {
@@ -1650,10 +1856,10 @@ function handleStartAuction(ws) {
   }
 
   const client = room.clients.get(ws)
-  
+
   console.log(`Start auction requested by ${client?.userName} in room ${roomCode}`)
   console.log(`   Players in room: ${room.clients.size}, Min teams: ${room.minTeams}`)
-  
+
   // Only host can start the auction
   if (!client || !client.isHost) {
     console.log('ERROR: Not host or client not found')
@@ -1681,7 +1887,7 @@ function handleStartAuction(ws) {
     type: 'start-auction',
     payload: { message: 'Auction is starting!' }
   })
-  
+
   room.clients.forEach((_, clientWs) => {
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(startMessage)
@@ -1700,7 +1906,7 @@ function handleStartAuction(ws) {
   }
 
   console.log(`Auction countdown started in room ${roomCode}`)
-  
+
   room.broadcastState()
 }
 
@@ -1718,6 +1924,15 @@ function handleBid(ws, payload) {
     ws.send(JSON.stringify({
       type: 'error',
       payload: { message: 'You can only bid for your own team' },
+    }))
+    return
+  }
+
+  // Prevent consecutive bids by the same team
+  if (room.auctionState.highestBidder === teamId) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'You already hold the highest bid! Wait for another team to bid.' },
     }))
     return
   }
@@ -1807,6 +2022,15 @@ function handlePauseAuction(ws, payload) {
   const client = room.clients.get(ws)
   if (!client) return
 
+  // Only host can pause
+  if (!client.isHost) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Only the host can pause the auction' }
+    }))
+    return
+  }
+
   const success = room.pauseAuction(client.teamId, client.userName)
   if (success) {
     console.log(`Auction paused by ${client.userName} in room ${roomCode}`)
@@ -1827,6 +2051,15 @@ function handleResumeAuction(ws, payload) {
 
   const client = room.clients.get(ws)
   if (!client) return
+
+  // Only host can resume
+  if (!client.isHost) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Only the host can resume the auction' }
+    }))
+    return
+  }
 
   // Allow anyone to resume the auction
   const success = room.resumeAuction(client.teamId, client.userName)
@@ -1889,7 +2122,7 @@ function handleAddPlayer(ws, payload) {
   }
 
   const newPlayer = room.addCustomPlayer(player)
-  
+
   ws.send(JSON.stringify({
     type: 'player-added',
     payload: {
@@ -1897,7 +2130,7 @@ function handleAddPlayer(ws, payload) {
       player: newPlayer
     }
   }))
-  
+
   console.log(`Custom player ${player.name} added by ${client.userName} in room ${roomCode}`)
 }
 
@@ -1921,19 +2154,19 @@ function handleLeaveRoom(ws) {
     // Use handleDisconnect for graceful disconnection with reconnection grace period
     room.handleDisconnect(ws)
     room.broadcastState()
-    
+
     // Check if room should be deleted
     const hasActiveClients = room.clients.size > 0
     const hasDisconnectedUsers = room.disconnectedUsers.size > 0
-    
+
     if (!hasActiveClients && !hasDisconnectedUsers) {
       rooms.delete(roomCode)
       console.log(`Room ${roomCode} deleted (empty)`)
     }
   }
-  
+
   clientRooms.delete(ws)
-  
+
   ws.send(JSON.stringify({
     type: 'left-room',
     payload: { success: true },
@@ -1943,7 +2176,7 @@ function handleLeaveRoom(ws) {
 // Handle get-room-state request (for teams view page)
 function handleGetRoomState(ws, payload) {
   const { roomCode } = payload || {}
-  
+
   if (!roomCode) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -1951,7 +2184,7 @@ function handleGetRoomState(ws, payload) {
     }))
     return
   }
-  
+
   const room = rooms.get(roomCode)
   if (!room) {
     ws.send(JSON.stringify({
@@ -1960,7 +2193,7 @@ function handleGetRoomState(ws, payload) {
     }))
     return
   }
-  
+
   // Send room state with teams data
   ws.send(JSON.stringify({
     type: 'room-state',
@@ -1987,11 +2220,107 @@ function handleGetRoomState(ws, payload) {
   }))
 }
 
+function handleProposeEndAuction(ws) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+  if (!client || !client.isHost) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Only the host can propose to end the auction' }
+    }))
+    return
+  }
+
+  if (room.votingActive) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'Voting is already in progress' }
+    }))
+    return
+  }
+
+  // Start voting
+  room.votingActive = true
+  room.endAuctionVotes.clear()
+
+  // Auto-vote for host
+  room.endAuctionVotes.add(client.userId)
+
+  console.log(`End auction vote started in room ${roomCode} by ${client.userName}`)
+
+  // Broadcast vote start
+  room.broadcastMessage({
+    type: 'vote-start',
+    payload: {
+      initiator: client.userName,
+      votesNeeded: Math.ceil(room.clients.size / 2),
+      currentVotes: 1,
+      totalVoters: room.clients.size
+    }
+  })
+
+  room.broadcastState()
+}
+
+function handleVoteEndAuction(ws, payload) {
+  const roomCode = clientRooms.get(ws)
+  if (!roomCode) return
+
+  const room = rooms.get(roomCode)
+  if (!room) return
+
+  const client = room.clients.get(ws)
+  if (!client) return
+
+  if (!room.votingActive) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: { message: 'No voting in progress' }
+    }))
+    return
+  }
+
+  const { vote } = payload // true = yes, false = no
+
+  if (vote) {
+    room.endAuctionVotes.add(client.userId)
+  } else {
+    room.endAuctionVotes.delete(client.userId)
+  }
+
+  const votesNeeded = Math.ceil(room.clients.size / 2)
+  const currentVotes = room.endAuctionVotes.size
+
+  console.log(`Vote update in room ${roomCode}: ${currentVotes}/${votesNeeded}`)
+
+  if (currentVotes >= votesNeeded) {
+    console.log(`Vote passed! Ending auction in room ${roomCode}`)
+    room.votingActive = false
+    room.completeAuction()
+  } else {
+    // Broadcast vote update
+    room.broadcastMessage({
+      type: 'vote-update',
+      payload: {
+        votesNeeded,
+        currentVotes,
+        totalVoters: room.clients.size
+      }
+    })
+    room.broadcastState()
+  }
+}
+
 // Cleanup old empty rooms every 5 minutes
 setInterval(() => {
   const now = Date.now()
   const OLD_ROOM_THRESHOLD = 30 * 60 * 1000 // 30 minutes
-  
+
   rooms.forEach((room, code) => {
     if (room.clients.size === 0 && now - room.createdAt > OLD_ROOM_THRESHOLD) {
       room.stopTicking()

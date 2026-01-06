@@ -82,7 +82,7 @@ export default function AuctionRoomApp() {
         } 
         // If accessing via local network IP
         else {
-          url = 'ws://192.168.56.1:8080'
+          url = `ws://${hostname}:8080`
           console.log('   Using network WebSocket:', url)
         }
       }
@@ -326,6 +326,7 @@ export default function AuctionRoomApp() {
           wsRef={wsRef}
           wsConnected={wsConnected}
           onComplete={handleAuctionComplete}
+          isHost={isHost}
         />
       )}
     </>

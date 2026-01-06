@@ -18,16 +18,24 @@ export async function POST(req: NextRequest) {
 
     // Calculate rankings based on team ratings
     const teamsWithRatings = teams.map((team: any) => {
-      // Calculate team rating (you can adjust this logic)
       const totalSpent = 100 - team.budget
       const playersCount = team.players?.length || 0
-      const rating = calculateTeamRating(team)
-      
+
+      // Check for Cortex Score (object) or basic rating (number)
+      let finalRating = 0
+      if (team.rating && typeof team.rating === 'object' && typeof team.rating.totalScore === 'number') {
+        finalRating = team.rating.totalScore
+      } else if (typeof team.rating === 'number') {
+        finalRating = team.rating
+      } else {
+        finalRating = calculateTeamRating(team) // Fallback to local calculation
+      }
+
       return {
         ...team,
         totalSpent,
         playersCount,
-        rating
+        rating: finalRating
       }
     })
 
@@ -60,7 +68,7 @@ export async function POST(req: NextRequest) {
       teamsWithRatings.map(async (team: any, index: number) => {
         const userId = team.userId || `user-${team.id}`
         const userName = team.userName || `Team ${team.id}`
-        
+
         // Get or create user stats
         const existingStats = await prisma.userStats.findUnique({
           where: { userId }
@@ -155,7 +163,7 @@ function calculateTeamRating(team: any) {
   // Simple rating: average of all player base prices, adjusted for squad balance
   const totalValue = players.reduce((sum: number, p: any) => sum + (p.soldPrice || p.basePrice || 0), 0)
   const avgValue = totalValue / players.length
-  
+
   // Count players by role
   const roleCount = {
     Batsman: players.filter((p: any) => p.role === 'Batsman').length,
@@ -165,13 +173,13 @@ function calculateTeamRating(team: any) {
   }
 
   // Balance bonus (having good distribution)
-  const balanceScore = Math.min(roleCount.Batsman, 5) + 
-                        Math.min(roleCount.Bowler, 5) + 
-                        (roleCount['All-rounder'] * 1.5) + 
-                        Math.min(roleCount['Wicket-keeper'], 2)
+  const balanceScore = Math.min(roleCount.Batsman, 5) +
+    Math.min(roleCount.Bowler, 5) +
+    (roleCount['All-rounder'] * 1.5) +
+    Math.min(roleCount['Wicket-keeper'], 2)
 
   // Final rating (0-100 scale)
   const rating = Math.min(100, (avgValue * 2) + balanceScore)
-  
+
   return parseFloat(rating.toFixed(2))
 }

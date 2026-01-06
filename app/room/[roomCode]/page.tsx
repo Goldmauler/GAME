@@ -168,7 +168,7 @@ export default function RoomPage() {
         }
         // If accessing via local network IP
         else {
-          wsUrl = 'ws://192.168.56.1:8080'
+          wsUrl = `ws://${hostname}:8080`
           console.log('   Using network WebSocket:', wsUrl)
         }
       } else {

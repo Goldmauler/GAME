@@ -7,7 +7,9 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle, MessageCircle, Pause, Play, Plus, Send, Settings } from "lucide-react"
+import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle, MessageCircle, Pause, Play, Plus, Send, Settings, LogOut } from "lucide-react"
+import { toast } from "sonner"
+import { useAuctionAudio } from "@/hooks/use-auction-audio"
 import { Input } from "@/components/ui/input"
 import AuctionLeaderboard from "./auction-leaderboard"
 
@@ -108,16 +110,18 @@ function MultiplayerAuctionArena({
   const [endConfirmText, setEndConfirmText] = useState("")
 
   // Chat and Pause state
-  const [chatMessages, setChatMessages] = useState<Array<{id: string, userName: string, message: string, timestamp: number, type: string}>>([])
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string, userName: string, message: string, timestamp: number, type: string }>>([])
   const [chatInput, setChatInput] = useState("")
   const [showChat, setShowChat] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
-  const [pausedBy, setPausedBy] = useState<{teamId: string, userName: string} | null>(null)
+  const [pausedBy, setPausedBy] = useState<{ teamId: string, userName: string } | null>(null)
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false)
   const [newPlayerName, setNewPlayerName] = useState("")
   const [newPlayerRole, setNewPlayerRole] = useState("Batsman")
   const [newPlayerBasePrice, setNewPlayerBasePrice] = useState(2)
   const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const { announceBid, announceSold, announceUnsold, announceNewPlayer } = useAuctionAudio()
 
   // Reconnection state
   const [isReconnecting, setIsReconnecting] = useState(false)
@@ -125,6 +129,12 @@ function MultiplayerAuctionArena({
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const maxReconnectAttempts = 5
   const reconnectIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Voting state
+  const [votingActive, setVotingActive] = useState(false)
+  const [votesCount, setVotesCount] = useState(0)
+  const [votesNeeded, setVotesNeeded] = useState(0)
+  const [hasVoted, setHasVoted] = useState(false)
 
   // Update isHost when prop changes
   useEffect(() => {
@@ -149,6 +159,8 @@ function MultiplayerAuctionArena({
   // Batch high-frequency auction-state updates to reduce re-renders
   const pendingPayloadRef = useRef<any>(null)
   const scheduledRef = useRef<boolean>(false)
+  const highestBidderRef = useRef<string>("")
+  const currentPlayerRef = useRef<any>(null)
 
   useEffect(() => {
     if (!wsRef.current || !wsConnected) return
@@ -179,7 +191,10 @@ function MultiplayerAuctionArena({
         saleHistory: history_sales,
         isPaused: paused,
         pausedBy: pausedByData,
-        chatMessages: chatMsgs
+        chatMessages: chatMsgs,
+        votingActive: voting,
+        votesCount: vCount,
+        totalVoters: tVoters
       } = payload
 
       if (updatedTeams) {
@@ -190,11 +205,17 @@ function MultiplayerAuctionArena({
         }
       }
       if (player !== undefined) {
+        // Announce new player if ID changed
+        if (currentPlayerRef.current?.id !== player.id) {
+          announceNewPlayer(player.name, player.role)
+        }
         setCurrentPlayer(player)
+        currentPlayerRef.current = player
         setHasWithdrawn(false) // Reset withdraw state when new player comes up
       }
       if (price !== undefined) setCurrentPrice(price)
       setHighestBidder(bidder || "")
+      if (bidder) highestBidderRef.current = bidder
       if (history !== undefined) setBidHistory(history || [])
       if (time !== undefined) setTimeLeft(time)
       if (idx !== undefined) setPlayerIndex(idx)
@@ -217,6 +238,16 @@ function MultiplayerAuctionArena({
       if (paused !== undefined) setIsPaused(paused)
       if (pausedByData !== undefined) setPausedBy(pausedByData)
       if (chatMsgs !== undefined) setChatMessages(chatMsgs || [])
+
+      if (voting !== undefined) {
+        setVotingActive(voting)
+        if (!voting) {
+          setHasVoted(false) // Reset local vote state when voting ends
+          setShowEndAuctionModal(false)
+        }
+      }
+      if (vCount !== undefined) setVotesCount(vCount)
+      if (tVoters !== undefined) setVotesNeeded(Math.ceil(tVoters / 2))
     }
 
     const scheduleApply = () => {
@@ -248,6 +279,37 @@ function MultiplayerAuctionArena({
         if (msg.type === "auction-state") {
           pendingPayloadRef.current = msg.payload
           scheduleApply()
+          scheduleApply()
+          return
+        }
+
+        // Handle immediate bid (Outbid notification)
+        if (msg.type === "bid_placed") {
+          const { teamId, amount } = msg.payload
+          setCurrentPrice(amount)
+          setHighestBidder(teamId)
+          setBidHistory(prev => [...prev, {
+            teamId: teamId,
+            teamName: msg.payload.teamName || 'Unknown',
+            price: amount,
+            timestamp: Date.now()
+          }])
+
+          if (highestBidderRef.current === localTeamId && teamId !== localTeamId) {
+            toast.error("You have been OUTBID!", {
+              description: `New bid: ₹${amount}Cr`,
+              duration: 2000
+            })
+          } else if (teamId !== localTeamId) {
+            toast(`New Bid: ₹${amount}Cr`, {
+              description: `by ${msg.payload.teamName}`
+            })
+          }
+
+          // Audio announcement
+          announceBid(msg.payload.teamName, amount)
+
+          highestBidderRef.current = teamId
           return
         }
 
@@ -255,7 +317,12 @@ function MultiplayerAuctionArena({
         if (msg.type === "player-sold") {
           const { player, soldToName, soldPrice } = msg.payload
           setSoldPlayerInfo({ name: player.name, team: soldToName, price: soldPrice })
-          setShowSoldAnimation(true)
+
+          if (soldToName) {
+            announceSold(soldToName, player.name, soldPrice)
+          } else {
+            announceUnsold(player.name)
+          }
 
           // Confetti if you won the bid (lazy-loaded)
           if (msg.payload.soldTo === localTeamId) {
@@ -566,8 +633,8 @@ function MultiplayerAuctionArena({
   // Show leaderboard when auction is complete
   if (showLeaderboard) {
     return (
-      <AuctionLeaderboard 
-        teams={teams} 
+      <AuctionLeaderboard
+        teams={teams}
         onClose={() => {
           setShowLeaderboard(false)
           onComplete()
@@ -589,7 +656,7 @@ function MultiplayerAuctionArena({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-2 sm:py-6 px-2 sm:px-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#0f1710] to-[#121c24] py-2 sm:py-6 px-2 sm:px-4">
       {/* Reconnection Prompt */}
       {showReconnectPrompt && (
         <motion.div
@@ -642,14 +709,16 @@ function MultiplayerAuctionArena({
                   {pausedBy && <p className="text-yellow-200 text-xs">by {pausedBy.userName}</p>}
                 </div>
               </div>
-              <Button
-                onClick={handleResumeAuction}
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg"
-              >
-                <Play className="w-4 h-4 mr-1" />
-                Resume
-              </Button>
+              {isHost && (
+                <Button
+                  onClick={handleResumeAuction}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg"
+                >
+                  <Play className="w-4 h-4 mr-1" />
+                  Resume
+                </Button>
+              )}
             </div>
           </motion.div>
         )}
@@ -666,7 +735,7 @@ function MultiplayerAuctionArena({
                 <span className="text-xs text-gray-400">Room:</span>
                 <span className="text-white font-bold text-sm">{roomCode}</span>
               </div>
-              <a 
+              <a
                 href={`/players?from=${encodeURIComponent(window?.location?.pathname || '/rooms')}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -675,7 +744,7 @@ function MultiplayerAuctionArena({
                 <Users className="w-4 h-4" />
                 <span className="text-xs font-medium hidden sm:inline">All Players</span>
               </a>
-              <a 
+              <a
                 href={`/teams/${roomCode}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -691,6 +760,21 @@ function MultiplayerAuctionArena({
               </Badge>
             </div>
           </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (window.confirm("Are you sure you want to leave the room?")) {
+                if (wsRef.current) wsRef.current.close()
+                window.location.href = "/"
+              }
+            }}
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+          >
+            <LogOut className="w-4 h-4 mr-1" />
+            Leave
+          </Button>
 
           {/* Your Team Card - Mobile Compact */}
           {localTeam && (
@@ -736,7 +820,7 @@ function MultiplayerAuctionArena({
 
         {/* Break Screen Overlay */}
         <AnimatePresence>
-          {(phase === 'break' || phase === 'strategic_timeout') && (
+          {(phase === 'break' || phase === 'strategic_timeout' || phase === 'sold_celebration') && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -750,43 +834,77 @@ function MultiplayerAuctionArena({
                 transition={{ type: "spring", duration: 0.5 }}
                 className="w-full max-w-md"
               >
-                <Card className="bg-gradient-to-br from-slate-800 via-slate-900 to-black border-2 border-orange-500 shadow-2xl shadow-orange-500/50">
+                <Card className="bg-slate-900 border-2 border-orange-500 shadow-2xl shadow-orange-500/50">
                   <div className="p-6 sm:p-10 text-center">
-                    {/* Break Icon */}
+                    {/* Icon */}
                     <motion.div
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className="text-5xl sm:text-7xl mb-4"
+                      className="text-5xl sm:text-7xl mb-4 flex justify-center"
                     >
-                      {breakType === 'snack' && '☕'}
-                      {breakType === 'category' && '✅'}
-                      {breakType === 'strategic' && '⏸️'}
+                      {phase === 'sold_celebration' ? (
+                        highestBidder ? '🔨' : '❌'
+                      ) : (
+                        <>
+                          {breakType === 'snack' && '☕'}
+                          {breakType === 'category' && '✅'}
+                          {breakType === 'strategic' && '⏸️'}
+                        </>
+                      )}
                     </motion.div>
 
-                    <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-3">
-                      {breakType === 'snack' && 'Snack Break!'}
-                      {breakType === 'category' && 'Category Complete!'}
-                      {breakType === 'strategic' && 'Strategic Timeout'}
+                    <h2 className={`text-3xl sm:text-4xl font-black mb-3 ${phase === 'sold_celebration'
+                      ? (highestBidder ? 'text-green-500' : 'text-red-500')
+                      : 'text-orange-500'
+                      }`}>
+                      {phase === 'sold_celebration' ? (
+                        highestBidder ? 'SOLD!' : 'UNSOLD'
+                      ) : (
+                        <>
+                          {breakType === 'snack' && 'Snack Break!'}
+                          {breakType === 'category' && 'Category Complete!'}
+                          {breakType === 'strategic' && 'Strategic Timeout'}
+                        </>
+                      )}
                     </h2>
 
-                    <p className="text-sm sm:text-base text-white mb-4">{breakMessage}</p>
+                    {phase === 'sold_celebration' ? (
+                      highestBidder ? (
+                        <div className="space-y-2">
+                          <p className="text-xl text-white font-bold">{currentPlayer.name}</p>
+                          <p className="text-gray-400">sold to</p>
+                          <p className="text-2xl text-orange-400 font-black">{highestBidderTeam?.name || 'Unknown Team'}</p>
+                          <p className="text-3xl text-green-400 font-black mt-2">₹{currentPrice}Cr</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xl text-white font-bold">{currentPlayer.name}</p>
+                          <p className="text-gray-400">remains unsold</p>
+                          <p className="text-sm text-gray-500 mt-2">Will return in next round</p>
+                        </div>
+                      )
+                    ) : (
+                      <>
+                        <p className="text-sm sm:text-base text-white mb-4">{breakMessage}</p>
 
-                    <motion.div
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 1, repeat: Infinity }}
-                      className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 mb-4"
-                    >
-                      {breakTimeLeft}s
-                    </motion.div>
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                          className="text-4xl sm:text-5xl font-black text-purple-400 mb-4"
+                        >
+                          {breakTimeLeft}s
+                        </motion.div>
 
-                    <div className="w-full bg-slate-700 rounded-full h-2">
-                      <motion.div
-                        className="bg-gradient-to-r from-orange-500 to-red-500 h-2 rounded-full"
-                        initial={{ width: "100%" }}
-                        animate={{ width: `${(breakTimeLeft / (breakType === 'strategic' ? 90 : breakType === 'snack' ? 60 : 30)) * 100}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
+                        <div className="w-full bg-slate-700 rounded-full h-2">
+                          <motion.div
+                            className="bg-orange-500 h-2 rounded-full"
+                            initial={{ width: "100%" }}
+                            animate={{ width: `${(breakTimeLeft / (breakType === 'strategic' ? 90 : breakType === 'snack' ? 60 : 30)) * 100}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </Card>
               </motion.div>
@@ -799,7 +917,7 @@ function MultiplayerAuctionArena({
           {/* Player & Bidding Section */}
           <div className="sm:col-span-2 space-y-3">
             {/* Timer - Mobile Compact */}
-            <Card className="bg-gradient-to-r from-slate-800 to-slate-900 border-slate-700/50">
+            <Card className="bg-slate-900 border-2 border-slate-800">
               <div className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -814,22 +932,20 @@ function MultiplayerAuctionArena({
                   <motion.span
                     animate={{ scale: timeLeft <= 10 ? [1, 1.1, 1] : 1 }}
                     transition={{ duration: 0.5, repeat: timeLeft <= 10 ? Infinity : 0 }}
-                    className={`text-3xl sm:text-4xl font-black ${
-                      timeLeft <= 10 
-                        ? "text-red-500" 
-                        : timeLeft <= 20 
-                        ? "text-orange-500" 
+                    className={`text-3xl sm:text-4xl font-black ${timeLeft <= 10
+                      ? "text-red-500"
+                      : timeLeft <= 20
+                        ? "text-orange-500"
                         : "text-white"
-                    }`}
+                      }`}
                   >
                     {timeLeft}s
                   </motion.span>
                 </div>
                 <div className="mt-2 w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                   <motion.div
-                    className={`h-2 rounded-full ${
-                      timeLeft <= 10 ? "bg-red-500" : "bg-gradient-to-r from-orange-500 to-yellow-500"
-                    }`}
+                    className={`h-2 rounded-full ${timeLeft <= 10 ? "bg-red-500" : "bg-gradient-to-r from-orange-500 to-yellow-500"
+                      }`}
                     animate={{ width: `${(timeLeft / 60) * 100}%` }}
                     transition={{ duration: 0.3 }}
                   />
@@ -838,7 +954,7 @@ function MultiplayerAuctionArena({
             </Card>
 
             {/* Current Player Card - Mobile Optimized */}
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-orange-500/50">
+            <Card className="bg-slate-900 border-2 border-orange-500/50">
               <div className="p-3 sm:p-5">
                 {/* Player Name & Info */}
                 <div className="flex items-start justify-between mb-3">
@@ -846,7 +962,7 @@ function MultiplayerAuctionArena({
                     <motion.h2
                       initial={{ x: -20, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
-                      className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 truncate"
+                      className="text-xl sm:text-2xl font-black text-white truncate"
                     >
                       {currentPlayer.name}
                     </motion.h2>
@@ -914,7 +1030,7 @@ function MultiplayerAuctionArena({
                         key={currentPrice}
                         initial={{ scale: 1.2, color: "#f97316" }}
                         animate={{ scale: 1, color: "#ffffff" }}
-                        className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500"
+                        className="text-3xl sm:text-4xl font-black text-green-400"
                       >
                         ₹{currentPrice}Cr
                       </motion.p>
@@ -969,7 +1085,7 @@ function MultiplayerAuctionArena({
                       Pause
                     </Button>
                   )}
-                  
+
                   {/* Strategic Timeout */}
                   {strategicTimeouts[localTeamId] > 0 && phase === 'active' && !isPaused && (
                     <Button
@@ -1032,9 +1148,8 @@ function MultiplayerAuctionArena({
                       {bidHistory.slice().reverse().slice(0, 5).map((bid, idx) => (
                         <div
                           key={idx}
-                          className={`flex items-center justify-between text-xs px-2 py-1 rounded ${
-                            idx === 0 ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-slate-700/30'
-                          }`}
+                          className={`flex items-center justify-between text-xs px-2 py-1 rounded ${idx === 0 ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-slate-700/30'
+                            }`}
                         >
                           <span className="text-white truncate">{bid.teamName}</span>
                           <span className={`font-bold ${idx === 0 ? 'text-orange-400' : 'text-gray-400'}`}>
@@ -1106,11 +1221,10 @@ function MultiplayerAuctionArena({
                           chatMessages.map((msg) => (
                             <div
                               key={msg.id}
-                              className={`rounded p-1.5 text-xs ${
-                                msg.type === 'system'
-                                  ? 'bg-blue-500/20 text-blue-300 text-center'
-                                  : 'bg-slate-700/50'
-                              }`}
+                              className={`rounded p-1.5 text-xs ${msg.type === 'system'
+                                ? 'bg-blue-500/20 text-blue-300 text-center'
+                                : 'bg-slate-700/50'
+                                }`}
                             >
                               {msg.type !== 'system' && (
                                 <span className="text-orange-400 font-semibold">{msg.userName}: </span>
@@ -1145,7 +1259,7 @@ function MultiplayerAuctionArena({
             </AnimatePresence>
 
             {/* Pause/Resume Controls */}
-            {phase === 'active' && (
+            {isHost && phase === 'active' && (
               <Card className="bg-slate-800/50 border-slate-600/50 p-2">
                 <div className="flex items-center gap-2 mb-2">
                   <Activity className="w-3 h-3 text-blue-400" />
@@ -1198,37 +1312,21 @@ function MultiplayerAuctionArena({
             )}
 
             {/* End Auction Button */}
-            <Button
-              onClick={() => setShowEndAuctionModal(true)}
-              variant="outline"
-              size="sm"
-              className="w-full border-red-500/50 text-red-400 text-xs"
-            >
-              🛑 End Auction
-            </Button>
+            {isHost && (
+              <Button
+                onClick={() => setShowEndAuctionModal(true)}
+                variant="outline"
+                size="sm"
+                className="w-full border-red-500/50 text-red-400 text-xs"
+              >
+                🛑 End Auction
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Sold Animation */}
-      <AnimatePresence>
-        {showSoldAnimation && soldPlayerInfo && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          >
-            <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-2xl border-4 border-green-400 shadow-2xl px-12 py-8 text-center">
-              <Gavel className="w-16 h-16 text-white mx-auto mb-4" />
-              <h2 className="text-4xl font-black text-white mb-2">SOLD!</h2>
-              <p className="text-2xl text-white font-bold">{soldPlayerInfo.name}</p>
-              <p className="text-xl text-green-200 mt-2">to {soldPlayerInfo.team}</p>
-              <p className="text-3xl font-black text-white mt-4">₹{soldPlayerInfo.price} Cr</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Add Player Modal */}
       <AnimatePresence>
@@ -1592,7 +1690,7 @@ function MultiplayerAuctionArena({
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Sale History Modal */}
       <SaleHistory
         saleHistory={saleHistory}
@@ -1650,11 +1748,10 @@ function MultiplayerAuctionArena({
                 <Button
                   onClick={handleEndAuction}
                   disabled={endConfirmText.toLowerCase() !== 'end'}
-                  className={`flex-1 ${
-                    endConfirmText.toLowerCase() === 'end'
-                      ? 'bg-red-600 hover:bg-red-700 text-white'
-                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                  }`}
+                  className={`flex-1 ${endConfirmText.toLowerCase() === 'end'
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                    }`}
                 >
                   End Auction
                 </Button>

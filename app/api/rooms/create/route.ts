@@ -40,7 +40,9 @@ export async function POST(req: NextRequest) {
         hostId,
         status: 'lobby',
         teams: teams || [],
-        players: players || [],
+        availablePlayers: players || [],
+        soldPlayers: [],
+        unsoldPlayers: [],
         minTeams,
         playerIndex: 0
       }
