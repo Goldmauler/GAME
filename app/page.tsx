@@ -81,7 +81,7 @@ function LobbyScreen({ onStart, onNewGame }: { onStart: () => void; onNewGame: (
     const connectionInfo = safeLocalStorage.getItem<{ roomCode: string; userName: string; timestamp: number }>('auctionConnection')
     if (connectionInfo && connectionInfo.roomCode && connectionInfo.timestamp) {
       const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
-      if (timeSinceDisconnect < 2 * 60 * 1000) {
+      if (timeSinceDisconnect < 24 * 60 * 60 * 1000) {
         setHasRoomConnection(true)
         setRoomInfo(connectionInfo)
       } else {

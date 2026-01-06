@@ -11,6 +11,8 @@ import Link from "next/link"
 
 // IPL 2025 MEGA AUCTION - Base Prices (in Crores)
 // Base prices are the starting bid amounts players enter auction with
+// IPL 2025 MEGA AUCTION - Base Prices (in Crores)
+// Base prices are the starting bid amounts players enter auction with
 const IPL_PLAYERS = [
   // MARQUEE SET (Base Price: ₹2 Cr)
   { name: "Rishabh Pant", role: "WK", price: 2, isMarquee: true },
@@ -26,145 +28,67 @@ const IPL_PLAYERS = [
   { name: "Liam Livingstone", role: "AR", price: 2, isMarquee: true },
   { name: "Glenn Maxwell", role: "AR", price: 2, isMarquee: true },
   { name: "Ishan Kishan", role: "WK", price: 2, isMarquee: true },
-  { name: "Devdutt Padikkal", role: "BAT", price: 2, isMarquee: true },
   { name: "Mohammed Siraj", role: "BOWL", price: 2, isMarquee: true },
-  { name: "Avesh Khan", role: "BOWL", price: 2, isMarquee: true },
-  { name: "Deepak Chahar", role: "BOWL", price: 2, isMarquee: true },
-  { name: "Harshal Patel", role: "BOWL", price: 2, isMarquee: true },
-  { name: "Rahul Chahar", role: "BOWL", price: 2, isMarquee: true },
-  { name: "Washington Sundar", role: "AR", price: 2, isMarquee: true },
-  
-  // RETAINED PLAYERS (Retention amounts for reference)
-  { name: "Virat Kohli", role: "BAT", price: 21, isMarquee: true },
-  { name: "Jasprit Bumrah", role: "BOWL", price: 18, isMarquee: true },
-  { name: "Suryakumar Yadav", role: "BAT", price: 16.35, isMarquee: true },
-  { name: "Hardik Pandya", role: "AR", price: 16.35, isMarquee: true },
-  { name: "Rohit Sharma", role: "BAT", price: 16.30, isMarquee: true },
-  { name: "MS Dhoni", role: "WK", price: 4, isMarquee: true },
-  { name: "Ruturaj Gaikwad", role: "BAT", price: 18, isMarquee: true },
-  { name: "Ravindra Jadeja", role: "AR", price: 18, isMarquee: true },
-  { name: "Shubman Gill", role: "BAT", price: 16.5, isMarquee: true },
-  { name: "Rashid Khan", role: "AR", price: 18, isMarquee: true },
-  { name: "Sanju Samson", role: "WK", price: 18, isMarquee: true },
-  { name: "Yashasvi Jaiswal", role: "BAT", price: 18, isMarquee: true },
-  { name: "Heinrich Klaasen", role: "WK", price: 23, isMarquee: true },
-  { name: "Pat Cummins", role: "BOWL", price: 18, isMarquee: true },
-  { name: "Nicholas Pooran", role: "WK", price: 21, isMarquee: true },
-  { name: "Axar Patel", role: "AR", price: 16.5, isMarquee: true },
 
-  // BASE PRICE: ₹2 Cr
+  // NOTE: Retained players are usually NOT in auction, but if listed here for reference, 
+  // they should have valid dummy base prices or be marked clearly. 
+  // User asked for "real auction" feel, so we list potential auction stars.
+
+  // High Value Batters
   { name: "Venkatesh Iyer", role: "AR", price: 2 },
+  { name: "David Warner", role: "BAT", price: 2 },
+  { name: "Faf du Plessis", role: "BAT", price: 2 },
+  { name: "Harry Brook", role: "BAT", price: 2 },
+  { name: "Travis Head", role: "BAT", price: 2 },
+  { name: "Devon Conway", role: "BAT", price: 2 },
+  { name: "Aiden Markram", role: "BAT", price: 2 },
+
+  // High Value Bowlers
   { name: "Trent Boult", role: "BOWL", price: 2 },
   { name: "Josh Hazlewood", role: "BOWL", price: 2 },
   { name: "Jofra Archer", role: "BOWL", price: 2 },
-  { name: "Marcus Stoinis", role: "AR", price: 2 },
-  { name: "Quinton de Kock", role: "WK", price: 2 },
-  { name: "Faf du Plessis", role: "BAT", price: 2 },
-  { name: "Sam Curran", role: "AR", price: 2 },
   { name: "Bhuvneshwar Kumar", role: "BOWL", price: 2 },
   { name: "Prasidh Krishna", role: "BOWL", price: 2 },
-  { name: "Harry Brook", role: "BAT", price: 2 },
-  { name: "Travis Head", role: "BAT", price: 2 },
-  { name: "Phil Salt", role: "WK", price: 2 },
   { name: "Anrich Nortje", role: "BOWL", price: 2 },
-  { name: "Wanindu Hasaranga", role: "AR", price: 2 },
   { name: "Lockie Ferguson", role: "BOWL", price: 2 },
-  { name: "Devon Conway", role: "BAT", price: 2 },
-  { name: "Aiden Markram", role: "BAT", price: 2 },
+  { name: "Harshal Patel", role: "BOWL", price: 2 },
+  { name: "Rahul Chahar", role: "BOWL", price: 1.5 }, // Dropped slightly
+
+  // High Value All-rounders
+  { name: "Marcus Stoinis", role: "AR", price: 2 },
+  { name: "Sam Curran", role: "AR", price: 2 },
+  { name: "Wanindu Hasaranga", role: "AR", price: 2 },
   { name: "Marco Jansen", role: "AR", price: 2 },
-  
-  // BASE PRICE: ₹1.5 Cr
-  { name: "Rinku Singh", role: "BAT", price: 1.5 },
+  { name: "Washington Sundar", role: "AR", price: 1.5 },
+
+  // Mid Range (1 Cr - 1.5 Cr)
+  { name: "Quinton de Kock", role: "WK", price: 2 }, // Vet
+  { name: "Rinku Singh", role: "BAT", price: 1.5 }, // Simulating if he was in auction
   { name: "Shivam Dube", role: "AR", price: 1.5 },
-  { name: "Shimron Hetmyer", role: "BAT", price: 1.5 },
+  { name: "Nitish Rana", role: "BAT", price: 1.5 },
   { name: "Rajat Patidar", role: "BAT", price: 1.5 },
   { name: "Jitesh Sharma", role: "WK", price: 1.5 },
-  { name: "Ravi Bishnoi", role: "BOWL", price: 1.5 },
-  { name: "Mayank Yadav", role: "BOWL", price: 1.5 },
-  { name: "Tristan Stubbs", role: "BAT", price: 1.5 },
-  { name: "Jake Fraser-McGurk", role: "BAT", price: 1.5 },
-  { name: "Sai Sudharsan", role: "BAT", price: 1.5 },
-  { name: "Krunal Pandya", role: "AR", price: 1.5 },
-  { name: "Will Jacks", role: "AR", price: 1.5 },
+  { name: "Ravi Bishnoi", role: "BOWL", price: 1.5 }, // Simulating
   { name: "T Natarajan", role: "BOWL", price: 1.5 },
-  { name: "Maheesh Theekshana", role: "BOWL", price: 1.5 },
-  { name: "Adam Zampa", role: "BOWL", price: 1.5 },
+  { name: "Will Jacks", role: "AR", price: 1.5 },
   { name: "Rachin Ravindra", role: "AR", price: 1.5 },
-  { name: "Moeen Ali", role: "AR", price: 1.5 },
 
-  // BASE PRICE: ₹1 Cr
-  { name: "Tilak Varma", role: "BAT", price: 1 },
+  // 1 Cr
+  { name: "Tilak Varma", role: "BAT", price: 1.25 },
   { name: "Rahul Tewatia", role: "AR", price: 1 },
-  { name: "Tushar Deshpande", role: "BOWL", price: 1 },
-  { name: "Nitish Kumar Reddy", role: "AR", price: 1 },
-  { name: "Shashank Singh", role: "AR", price: 1 },
-  { name: "Naman Dhir", role: "AR", price: 1 },
-  { name: "Yash Dayal", role: "BOWL", price: 1 },
-  { name: "Khaleel Ahmed", role: "BOWL", price: 1 },
-  { name: "Harshit Rana", role: "BOWL", price: 1 },
-  { name: "Mohsin Khan", role: "BOWL", price: 1 },
-  { name: "Ayush Badoni", role: "BAT", price: 1 },
   { name: "Nehal Wadhera", role: "BAT", price: 1 },
-  { name: "Tim David", role: "AR", price: 1 },
-  { name: "Spencer Johnson", role: "BOWL", price: 1 },
-  { name: "Jacob Bethell", role: "AR", price: 1 },
+  { name: "Tim David", role: "AR", price: 1.5 }, // High impact
+  { name: "Abdul Samad", role: "BAT", price: 0.75 },
 
-  // BASE PRICE: ₹75 Lakhs
-  { name: "Dhruv Jurel", role: "WK", price: 0.75 },
-  { name: "Abhishek Sharma", role: "AR", price: 0.75 },
-  { name: "Riyan Parag", role: "AR", price: 0.75 },
-  { name: "Kuldeep Yadav", role: "BOWL", price: 0.75 },
-  { name: "Matheesha Pathirana", role: "BOWL", price: 0.75 },
-  { name: "Varun Chakravarthy", role: "BOWL", price: 0.75 },
-  { name: "Sunil Narine", role: "AR", price: 0.75 },
-  { name: "Andre Russell", role: "AR", price: 0.75 },
-  { name: "Noor Ahmad", role: "BOWL", price: 0.75 },
-  { name: "Ashutosh Sharma", role: "AR", price: 0.75 },
-  { name: "Rahul Tripathi", role: "BAT", price: 0.75 },
-  { name: "Mitchell Marsh", role: "AR", price: 0.75 },
-  { name: "Abhinav Manohar", role: "AR", price: 0.75 },
-  { name: "Josh Inglis", role: "WK", price: 0.75 },
-  { name: "Shamar Joseph", role: "BOWL", price: 0.75 },
-  { name: "Azmatullah Omarzai", role: "AR", price: 0.75 },
-  { name: "Fazalhaq Farooqi", role: "BOWL", price: 0.75 },
-
-  // BASE PRICE: ₹50 Lakhs
+  // Budget / Uncapped Stars (0.3 - 0.75)
+  { name: "Sameer Rizvi", role: "BAT", price: 0.4 },
   { name: "Shahrukh Khan", role: "BAT", price: 0.5 },
   { name: "Abishek Porel", role: "WK", price: 0.5 },
-  { name: "Prabhsimran Singh", role: "WK", price: 0.5 },
-  { name: "Sandeep Sharma", role: "BOWL", price: 0.5 },
   { name: "Ramandeep Singh", role: "AR", price: 0.5 },
-  { name: "Priyansh Arya", role: "BAT", price: 0.5 },
-  { name: "Rahmanullah Gurbaz", role: "WK", price: 0.5 },
-  { name: "Romario Shepherd", role: "AR", price: 0.5 },
-  { name: "Harpreet Brar", role: "AR", price: 0.5 },
-  { name: "Ajinkya Rahane", role: "BAT", price: 0.5 },
-  { name: "Simarjeet Singh", role: "BOWL", price: 0.5 },
-  { name: "Aaron Hardie", role: "AR", price: 0.5 },
-  { name: "Akash Madhwal", role: "BOWL", price: 0.5 },
-  { name: "Vijay Shankar", role: "AR", price: 0.5 },
-  { name: "Lungi Ngidi", role: "BOWL", price: 0.5 },
-  { name: "Suyash Sharma", role: "BOWL", price: 0.5 },
-  { name: "Gurjapneet Singh", role: "BOWL", price: 0.5 },
-  { name: "Mohit Sharma", role: "BOWL", price: 0.5 },
-
-  // BASE PRICE: ₹40 Lakhs
-  { name: "Ryan Rickelton", role: "BAT", price: 0.4 },
-  { name: "Jaydev Unadkat", role: "BOWL", price: 0.4 },
-  { name: "Sameer Rizvi", role: "BAT", price: 0.4 },
-  { name: "Vishnu Vinod", role: "WK", price: 0.4 },
-  { name: "Eshan Malinga", role: "BOWL", price: 0.4 },
-  { name: "Xavier Bartlett", role: "BOWL", price: 0.4 },
-
-  // BASE PRICE: ₹30 Lakhs
-  { name: "Shubham Dubey", role: "BAT", price: 0.3 },
-  { name: "Manish Pandey", role: "BAT", price: 0.3 },
-  { name: "Matthew Breetzke", role: "BAT", price: 0.3 },
-  { name: "Kamindu Mendis", role: "AR", price: 0.3 },
-  { name: "Robin Minz", role: "WK", price: 0.3 },
-  { name: "Karn Sharma", role: "BOWL", price: 0.3 },
-  { name: "Swapnil Singh", role: "AR", price: 0.3 },
-  { name: "Zeeshan Ansari", role: "BOWL", price: 0.3 },
+  { name: "Akash Madhwal", role: "BOWL", price: 0.4 },
+  { name: "Yash Dayal", role: "BOWL", price: 0.75 },
+  { name: "Mohit Sharma", role: "BOWL", price: 0.75 },
+  { name: "Mayank Yadav", role: "BOWL", price: 1.5 }, // Special talent
 ]
 
 type Category = 'all' | 'marquee' | 'bat' | 'bowl' | 'ar' | 'wk'
@@ -175,7 +99,7 @@ export default function PlayersListPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<Category>('all')
   const [showAll, setShowAll] = useState(false)
-  
+
   // Get back URL from query params or default to /rooms
   const backUrl = searchParams.get('from') || '/rooms'
 
@@ -185,9 +109,9 @@ export default function PlayersListPage() {
     const playerData = {
       id: player.name.toLowerCase().replace(/\s+/g, '-'),
       name: player.name,
-      role: player.role === 'BAT' ? 'Batsman' : 
-            player.role === 'BOWL' ? 'Bowler' :
-            player.role === 'AR' ? 'All-rounder' : 'Wicket-keeper',
+      role: player.role === 'BAT' ? 'Batsman' :
+        player.role === 'BOWL' ? 'Bowler' :
+          player.role === 'AR' ? 'All-rounder' : 'Wicket-keeper',
       basePrice: player.price,
       rating: player.isMarquee ? 90 : 75,
     }
@@ -272,11 +196,10 @@ export default function PlayersListPage() {
               onClick={() => setSelectedCategory(key as Category)}
               size="sm"
               variant={selectedCategory === key ? "default" : "outline"}
-              className={`text-xs px-2 py-1 h-7 whitespace-nowrap ${
-                selectedCategory === key 
-                  ? 'bg-orange-500 text-white' 
+              className={`text-xs px-2 py-1 h-7 whitespace-nowrap ${selectedCategory === key
+                  ? 'bg-orange-500 text-white'
                   : 'border-slate-600 text-gray-400'
-              }`}
+                }`}
             >
               {label} ({counts[key as Category]})
             </Button>
@@ -298,7 +221,7 @@ export default function PlayersListPage() {
               </thead>
               <tbody>
                 {displayPlayers.map((player, idx) => (
-                  <tr 
+                  <tr
                     key={player.name}
                     className={`border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer transition-colors ${player.isMarquee ? 'bg-orange-500/5' : ''}`}
                     onClick={() => viewPlayerStats(player)}
@@ -330,7 +253,7 @@ export default function PlayersListPage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Show More Button */}
           {filteredPlayers.length > 50 && !showAll && (
             <button
@@ -341,7 +264,7 @@ export default function PlayersListPage() {
               Show {filteredPlayers.length - 50} more players
             </button>
           )}
-          
+
           {showAll && filteredPlayers.length > 50 && (
             <button
               onClick={() => setShowAll(false)}

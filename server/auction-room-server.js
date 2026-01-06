@@ -706,10 +706,10 @@ class AuctionRoom {
     // Broadcast immediately to show "Sold/Unsold" state
     this.broadcastState()
 
-    // Wait for celebration animation (3 seconds)
+    // Wait for sold status display (reduced to 3 seconds)
     setTimeout(() => {
       this.resolvePlayerSale()
-    }, 4000)
+    }, 3000)
   }
 
   resolvePlayerSale() {

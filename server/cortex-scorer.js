@@ -147,7 +147,13 @@ function calculateCortexScore(team) {
     else if (roleCounts["All-rounder"] >= 1) synergyScore += 2
 
     // --- Final Calculation ---
-    const totalScore = Math.min(100, performanceScore + compositionScore + valueScore + synergyScore)
+    let totalScore = Math.min(100, performanceScore + compositionScore + valueScore + synergyScore)
+
+    // PENALTY: Squad Minimum Requirement (18 Players)
+    if (squadSize < 18) {
+        // Severe penalty: Reduce score by 50% and cap at 40
+        totalScore = Math.min(40, totalScore * 0.5)
+    }
 
     // Grading
     let grade = 'F'
@@ -169,7 +175,8 @@ function calculateCortexScore(team) {
     if (roleCounts["All-rounder"] >= 4) strengths.push("Deep batting & bowling options")
 
     const weaknesses = []
-    if (squadSize < 15) weaknesses.push("Squad lacks depth")
+    if (squadSize < 18) weaknesses.push(`Incomplete Squad (${squadSize}/18 players)`)
+    else if (squadSize < 15) weaknesses.push("Squad lacks depth") // Should not be reachable if < 18 check exists, but good for robust logic
     if (roleCounts["Wicket-keeper"] === 0) weaknesses.push("No specialist Wicket-keeper")
     if (avgBattingScore < 50) weaknesses.push("Low batting impact")
     if (totalSpent > 95 && squadSize < 16) weaknesses.push("Overspent on few players")

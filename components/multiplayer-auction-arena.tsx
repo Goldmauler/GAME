@@ -820,7 +820,7 @@ function MultiplayerAuctionArena({
 
         {/* Break Screen Overlay */}
         <AnimatePresence>
-          {(phase === 'break' || phase === 'strategic_timeout' || phase === 'sold_celebration') && (
+          {(phase === 'break' || phase === 'strategic_timeout') && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -952,6 +952,46 @@ function MultiplayerAuctionArena({
                 </div>
               </div>
             </Card>
+
+            {/* SOLD BANNER (Replaces Overlay) */}
+            <AnimatePresence>
+              {phase === 'sold_celebration' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="mb-4"
+                >
+                  <Card className={`border-2 shadow-2xl overflow-hidden ${highestBidder ? 'bg-green-950/90 border-green-500 shadow-green-900/50' : 'bg-red-950/90 border-red-500 shadow-red-900/50'}`}>
+                    <div className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-full ${highestBidder ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                          {highestBidder ? <Gavel className="w-8 h-8 text-green-400" /> : <XCircle className="w-8 h-8 text-red-400" />}
+                        </div>
+                        <div>
+                          <h2 className={`text-2xl font-black ${highestBidder ? 'text-green-400' : 'text-red-400'}`}>
+                            {highestBidder ? 'SOLD!' : 'UNSOLD'}
+                          </h2>
+                          {highestBidder ? (
+                            <p className="text-white">
+                              To <span className="font-bold text-orange-400 text-lg">{highestBidderTeam?.name || 'Unknown Team'}</span> for <span className="font-bold text-green-400">₹{currentPrice}Cr</span>
+                            </p>
+                          ) : (
+                            <p className="text-gray-400">No bids received for {currentPlayer.name}</p>
+                          )}
+                        </div>
+                      </div>
+                      {highestBidder && (
+                        <div className="hidden sm:block text-right">
+                          <p className="text-xs text-gray-500 uppercase tracking-wider">Sold Price</p>
+                          <p className="text-3xl font-black text-white">₹{currentPrice}<span className="text-lg text-gray-400">Cr</span></p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Current Player Card - Mobile Optimized */}
             <Card className="bg-slate-900 border-2 border-orange-500/50">
@@ -1347,7 +1387,7 @@ function MultiplayerAuctionArena({
             >
               <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6">
                 <h2 className="text-2xl font-black text-white flex items-center gap-2">
-                  <Plus className="w-6 h-6" />
+                  <UserPlus className="w-6 h-6" />
                   Add Custom Player
                 </h2>
               </div>
@@ -1589,110 +1629,113 @@ function MultiplayerAuctionArena({
                   </div>
                 )}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div >
+          </motion.div >
+        )
+        }
+      </AnimatePresence >
 
       {/* Sold Animation - Enhanced */}
       <AnimatePresence>
-        {showSoldAnimation && soldPlayerInfo && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md"
-          >
+        {
+          showSoldAnimation && soldPlayerInfo && (
             <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              exit={{ scale: 0, rotate: 180 }}
-              transition={{ type: "spring", duration: 0.7 }}
-              className="relative"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md"
             >
-              {/* Glow effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500 rounded-3xl blur-3xl opacity-50 animate-pulse" />
-
               <motion.div
-                animate={{
-                  y: [0, -10, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-                className="relative bg-gradient-to-br from-orange-600 via-red-600 to-orange-700 rounded-3xl p-16 text-center shadow-2xl border-4 border-yellow-400/50"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                exit={{ scale: 0, rotate: 180 }}
+                transition={{ type: "spring", duration: 0.7 }}
+                className="relative"
               >
-                {/* Confetti burst animation */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: [0, 1.5, 0] }}
-                  transition={{ duration: 1, repeat: Infinity, repeatDelay: 1 }}
-                  className="absolute inset-0 flex items-center justify-center"
-                >
-                  <div className="text-6xl"></div>
-                </motion.div>
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500 rounded-3xl blur-3xl opacity-50 animate-pulse" />
 
                 <motion.div
                   animate={{
-                    rotate: [0, 360],
+                    y: [0, -10, 0],
                   }}
                   transition={{
                     duration: 2,
                     repeat: Infinity,
-                    ease: "linear",
+                    ease: "easeInOut",
                   }}
-                  className="relative"
+                  className="relative bg-gradient-to-br from-orange-600 via-red-600 to-orange-700 rounded-3xl p-16 text-center shadow-2xl border-4 border-yellow-400/50"
                 >
-                  <Trophy className="w-32 h-32 text-yellow-300 mx-auto mb-8 drop-shadow-2xl" />
-                </motion.div>
+                  {/* Confetti burst animation */}
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: [0, 1.5, 0] }}
+                    transition={{ duration: 1, repeat: Infinity, repeatDelay: 1 }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <div className="text-6xl"></div>
+                  </motion.div>
 
-                <motion.h2
-                  initial={{ scale: 0.5 }}
-                  animate={{ scale: [0.5, 1.2, 1] }}
-                  transition={{ duration: 0.5 }}
-                  className="text-7xl font-black text-white mb-6 drop-shadow-2xl tracking-wider"
-                  style={{
-                    textShadow: "0 0 30px rgba(255, 255, 255, 0.5), 0 0 60px rgba(251, 146, 60, 0.5)",
-                  }}
-                >
-                  SOLD!
-                </motion.h2>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <p className="text-3xl text-white font-bold mb-3">{soldPlayerInfo.name}</p>
-                  <div className="flex items-center justify-center gap-2 mb-6">
-                    <Crown className="w-6 h-6 text-yellow-300" />
-                    <p className="text-2xl text-yellow-100">to {soldPlayerInfo.team}</p>
-                  </div>
                   <motion.div
                     animate={{
-                      scale: [1, 1.05, 1],
+                      rotate: [0, 360],
                     }}
                     transition={{
-                      duration: 1,
+                      duration: 2,
                       repeat: Infinity,
+                      ease: "linear",
                     }}
-                    className="bg-white/20 rounded-2xl px-8 py-4 backdrop-blur-sm border-2 border-white/30"
+                    className="relative"
                   >
-                    <p className="text-5xl font-black text-yellow-300 drop-shadow-lg">
-                      ₹{soldPlayerInfo.price}Cr
-                    </p>
+                    <Trophy className="w-32 h-32 text-yellow-300 mx-auto mb-8 drop-shadow-2xl" />
+                  </motion.div>
+
+                  <motion.h2
+                    initial={{ scale: 0.5 }}
+                    animate={{ scale: [0.5, 1.2, 1] }}
+                    transition={{ duration: 0.5 }}
+                    className="text-7xl font-black text-white mb-6 drop-shadow-2xl tracking-wider"
+                    style={{
+                      textShadow: "0 0 30px rgba(255, 255, 255, 0.5), 0 0 60px rgba(251, 146, 60, 0.5)",
+                    }}
+                  >
+                    SOLD!
+                  </motion.h2>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <p className="text-3xl text-white font-bold mb-3">{soldPlayerInfo.name}</p>
+                    <div className="flex items-center justify-center gap-2 mb-6">
+                      <Crown className="w-6 h-6 text-yellow-300" />
+                      <p className="text-2xl text-yellow-100">to {soldPlayerInfo.team}</p>
+                    </div>
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.05, 1],
+                      }}
+                      transition={{
+                        duration: 1,
+                        repeat: Infinity,
+                      }}
+                      className="bg-white/20 rounded-2xl px-8 py-4 backdrop-blur-sm border-2 border-white/30"
+                    >
+                      <p className="text-5xl font-black text-yellow-300 drop-shadow-lg">
+                        ₹{soldPlayerInfo.price}Cr
+                      </p>
+                    </motion.div>
                   </motion.div>
                 </motion.div>
               </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* Sale History Modal */}
-      <SaleHistory
+      < SaleHistory
         saleHistory={saleHistory}
         isOpen={showSaleHistory}
         onClose={() => setShowSaleHistory(false)}
@@ -1778,6 +1821,6 @@ function MultiplayerAuctionArena({
           background: linear-gradient(180deg, #ea580c, #dc2626);
         }
       `}</style>
-    </div>
+    </div >
   )
 }
