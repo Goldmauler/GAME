@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+export const dynamic = 'force-dynamic'
+
+import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,8 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Trophy, ArrowLeft, Search, Star, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import Link from "next/link"
 
-// IPL 2025 MEGA AUCTION - Base Prices (in Crores)
-// Base prices are the starting bid amounts players enter auction with
 // IPL 2025 MEGA AUCTION - Base Prices (in Crores)
 // Base prices are the starting bid amounts players enter auction with
 const IPL_PLAYERS = [
@@ -93,7 +93,7 @@ const IPL_PLAYERS = [
 
 type Category = 'all' | 'marquee' | 'bat' | 'bowl' | 'ar' | 'wk'
 
-export default function PlayersListPage() {
+function PlayersListContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
@@ -197,8 +197,8 @@ export default function PlayersListPage() {
               size="sm"
               variant={selectedCategory === key ? "default" : "outline"}
               className={`text-xs px-2 py-1 h-7 whitespace-nowrap ${selectedCategory === key
-                  ? 'bg-orange-500 text-white'
-                  : 'border-slate-600 text-gray-400'
+                ? 'bg-orange-500 text-white'
+                : 'border-slate-600 text-gray-400'
                 }`}
             >
               {label} ({counts[key as Category]})
@@ -282,5 +282,13 @@ export default function PlayersListPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function PlayersListPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-gray-400">Loading players...</div>}>
+      <PlayersListContent />
+    </Suspense>
   )
 }
