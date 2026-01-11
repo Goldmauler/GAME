@@ -150,32 +150,13 @@ export default function RoomPage() {
       let wsUrl: string
 
       if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname
-
-        console.log('Detecting WebSocket URL...')
-        console.log('   Current hostname:', hostname)
-
-        // If accessing via localhost
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          wsUrl = 'ws://localhost:8080'
-          console.log('   Using local WebSocket:', wsUrl)
-        }
-        // If accessing via ngrok (internet)
-        else if (hostname.includes('ngrok')) {
-          // Use the WebSocket ngrok tunnel
-          wsUrl = 'wss://sheathier-achromatous-meredith.ngrok-free.dev'
-          console.log('   Using ngrok WebSocket:', wsUrl)
-        }
-        // If accessing via local network IP
-        else {
-          wsUrl = `ws://${hostname}:8080`
-          console.log('   Using network WebSocket:', wsUrl)
-        }
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        wsUrl = `${protocol}//${window.location.host}`
+        console.log('Connecting to WebSocket:', wsUrl)
       } else {
         wsUrl = 'ws://localhost:8080'
       }
 
-      console.log('Connecting to WebSocket:', wsUrl)
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
@@ -191,14 +172,9 @@ export default function RoomPage() {
             const connectionInfo = JSON.parse(storedConnection)
             const timeSinceDisconnect = Date.now() - connectionInfo.timestamp
 
-            // If same room and within 2 minutes, auto-rejoin
-            if (connectionInfo.roomCode === roomCode && timeSinceDisconnect < 2 * 60 * 1000) {
+            // If same room and within 24 hours (matching server), auto-rejoin
+            if (connectionInfo.roomCode === roomCode && timeSinceDisconnect < 24 * 60 * 60 * 1000) {
               console.log('Auto-rejoining room...')
-              console.log('   Room Code:', connectionInfo.roomCode)
-              console.log('   User Name:', connectionInfo.userName)
-              console.log('   User ID:', connectionInfo.userId)
-              console.log('   Time Since Disconnect:', Math.floor(timeSinceDisconnect / 1000), 'seconds')
-
               setTimeout(() => {
                 if (ws.readyState === WebSocket.OPEN) {
                   ws.send(JSON.stringify({
@@ -212,7 +188,7 @@ export default function RoomPage() {
                   }))
                   console.log('Sent auto-rejoin request')
                 }
-              }, 500) // Small delay to ensure connection is stable
+              }, 100)
             } else {
               console.log('Cannot auto-rejoin:')
               if (connectionInfo.roomCode !== roomCode) {
@@ -674,10 +650,10 @@ export default function RoomPage() {
                       >
                         <Card
                           className={`cursor-pointer transition-all ${isSelected
-                              ? 'border-green-500 border-2 bg-green-500/10'
-                              : isTaken
-                                ? 'opacity-50 cursor-not-allowed border-red-500'
-                                : 'hover:border-orange-500'
+                            ? 'border-green-500 border-2 bg-green-500/10'
+                            : isTaken
+                              ? 'opacity-50 cursor-not-allowed border-red-500'
+                              : 'hover:border-orange-500'
                             }`}
                           onClick={() => !isTaken && handleSelectTeam(team.id)}
                         >

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle, MessageCircle, Pause, Play, Plus, Send, Settings, LogOut } from "lucide-react"
+import { Crown, Gavel, TrendingUp, Users, Zap, Clock, DollarSign, Trophy, Target, Award, Activity, Info, Star, TrendingDown, ExternalLink, History, XCircle, MessageCircle, Pause, Play, Plus, Send, Settings, LogOut, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { useAuctionAudio } from "@/hooks/use-auction-audio"
 import { Input } from "@/components/ui/input"
@@ -120,6 +120,7 @@ function MultiplayerAuctionArena({
   const [newPlayerRole, setNewPlayerRole] = useState("Batsman")
   const [newPlayerBasePrice, setNewPlayerBasePrice] = useState(2)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   const { announceBid, announceSold, announceUnsold, announceNewPlayer } = useAuctionAudio()
 
@@ -577,8 +578,8 @@ function MultiplayerAuctionArena({
 
   // Auto scroll chat to bottom
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
   }, [chatMessages])
 
@@ -820,7 +821,7 @@ function MultiplayerAuctionArena({
 
         {/* Break Screen Overlay */}
         <AnimatePresence>
-          {(phase === 'break' || phase === 'strategic_timeout') && (
+          {(phase === 'break' || phase === 'strategic_timeout' || phase === 'sold_celebration') && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1127,7 +1128,7 @@ function MultiplayerAuctionArena({
                   )}
 
                   {/* Strategic Timeout */}
-                  {strategicTimeouts[localTeamId] > 0 && phase === 'active' && !isPaused && (
+                  {(strategicTimeouts[localTeamId] || 0) > 0 && phase === 'active' && !isPaused && (
                     <Button
                       onClick={handleStrategicTimeout}
                       size="sm"
@@ -1254,7 +1255,7 @@ function MultiplayerAuctionArena({
                 >
                   <Card className="bg-slate-800/80 border-slate-600/50">
                     <div className="p-2">
-                      <div className="h-32 sm:h-40 overflow-y-auto space-y-1 mb-2 bg-slate-900/50 rounded p-1">
+                      <div ref={chatContainerRef} className="h-32 sm:h-40 overflow-y-auto space-y-1 mb-2 bg-slate-900/50 rounded p-1">
                         {chatMessages.length === 0 ? (
                           <p className="text-center text-gray-500 text-xs py-4">No messages yet</p>
                         ) : (

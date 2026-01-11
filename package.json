@@ -8,9 +8,9 @@
   "scripts": {
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
-    "dev": "next dev",
+    "dev": "node server/auction-room-server.js",
     "lint": "eslint .",
-    "start": "next start",
+    "start": "node server/auction-room-server.js",
     "start-server": "node server/auction-server.js",
     "start-room-server": "node server/auction-room-server.js",
     "start-ws": "node server/websocket-server.js",

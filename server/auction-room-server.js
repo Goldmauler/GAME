@@ -24,29 +24,41 @@ const PORT = process.env.PORT || process.env.AUCTION_PORT || 8080
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000"
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 
-// Create HTTP server for compatibility with Render and ngrok
-const server = http.createServer((req, res) => {
-  // Health check endpoint for Render
-  if (req.url === '/health' || req.url === '/') {
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    })
-    res.end(JSON.stringify({
-      status: 'ok',
-      service: 'IPL Auction WebSocket Server',
-      timestamp: new Date().toISOString(),
-      activeRooms: rooms.size,
-      activeConnections: wss.clients.size
-    }))
-  } else {
-    res.writeHead(404, { 'Content-Type': 'text/plain' })
-    res.end('Not Found')
-  }
-})
+const next = require("next")
+const dev = process.env.NODE_ENV !== 'production'
+const app = next({ dev })
+const handle = app.getRequestHandler()
 
-const wss = new WebSocket.Server({
-  server: server // Attach to HTTP server instead of port directly
+let server;
+let wss;
+
+app.prepare().then(() => {
+  server = http.createServer((req, res) => {
+    if (req.url === '/health' || req.url === '/') {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      })
+      res.end(JSON.stringify({
+        status: 'ok',
+        service: 'IPL Auction WebSocket Server',
+        timestamp: new Date().toISOString(),
+        activeRooms: rooms.size,
+        activeConnections: wss ? wss.clients.size : 0
+      }))
+    } else {
+      handle(req, res)
+    }
+  })
+
+  wss = new WebSocket.Server({ server })
+
+  setupWebSocketListeners(wss)
+
+  server.listen(PORT, (err) => {
+    if (err) throw err
+    console.log(`> Ready on http://localhost:${PORT}`)
+  })
 })
 
 // Helper function to get local IP addresses
@@ -1450,43 +1462,45 @@ class AuctionRoom {
 }
 
 // WebSocket connection handler
-wss.on("connection", (ws) => {
-  console.log("Client connected")
+function setupWebSocketListeners(wss) {
+  wss.on("connection", (ws) => {
+    console.log("Client connected")
 
-  ws.on("message", (data) => {
-    try {
-      const msg = JSON.parse(data)
-      handleMessage(ws, msg)
-    } catch (e) {
-      console.error("Invalid message:", e)
-    }
-  })
-
-  ws.on("close", () => {
-    console.log("Client disconnected")
-
-    const roomCode = clientRooms.get(ws)
-    if (roomCode) {
-      const room = rooms.get(roomCode)
-      if (room) {
-        // Handle disconnection with grace period
-        room.handleDisconnect(ws)
-        room.broadcastState()
-
-        // Don't delete room immediately, wait for potential reconnection
-        // Room will only be deleted if it's truly empty (no active or disconnected users)
-        const hasActiveClients = room.clients.size > 0
-        const hasDisconnectedUsers = room.disconnectedUsers.size > 0
-
-        if (!hasActiveClients && !hasDisconnectedUsers) {
-          rooms.delete(roomCode)
-          console.log(`Room ${roomCode} deleted (empty)`)
-        }
+    ws.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data)
+        handleMessage(ws, msg)
+      } catch (e) {
+        console.error("Invalid message:", e)
       }
-      clientRooms.delete(ws)
-    }
+    })
+
+    ws.on("close", () => {
+      console.log("Client disconnected")
+
+      const roomCode = clientRooms.get(ws)
+      if (roomCode) {
+        const room = rooms.get(roomCode)
+        if (room) {
+          // Handle disconnection with grace period
+          room.handleDisconnect(ws)
+          room.broadcastState()
+
+          // Don't delete room immediately, wait for potential reconnection
+          // Room will only be deleted if it's truly empty (no active or disconnected users)
+          const hasActiveClients = room.clients.size > 0
+          const hasDisconnectedUsers = room.disconnectedUsers.size > 0
+
+          if (!hasActiveClients && !hasDisconnectedUsers) {
+            rooms.delete(roomCode)
+            console.log(`Room ${roomCode} deleted (empty)`)
+          }
+        }
+        clientRooms.delete(ws)
+      }
+    })
   })
-})
+}
 
 function handleMessage(ws, msg) {
   const { type, payload } = msg
